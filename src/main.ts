@@ -73,6 +73,14 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 				visible: s.recolorVisible ? hexToRgb(s.visibleColor) : null,
 			},
 			size: { active: s.activeSize, visible: s.visibleSize },
+			ring: {
+				active: s.activeRing
+					? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
+					: null,
+				visible: s.visibleRing
+					? { rgb: hexToRgb(s.visibleRingColor), width: s.visibleRingWidth, gap: s.visibleRingGap }
+					: null,
+			},
 			dimLabels: s.dimLabels,
 			dimLinks: s.dimLinks,
 		};
@@ -101,6 +109,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 
 	/** Recompute every open graph. */
 	refresh() {
+		this.patcher.pruneRings();
 		for (const leaf of this.allGraphLeaves()) {
 			const renderer = this.renderer(leaf);
 			if (!renderer) continue;

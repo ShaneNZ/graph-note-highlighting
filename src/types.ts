@@ -8,6 +8,25 @@ export interface GraphColor {
 
 export interface PixiDisplay {
 	alpha: number;
+	visible: boolean;
+}
+
+/** The subset of PIXI.Graphics used to draw rings. */
+export interface PixiGraphics extends PixiDisplay {
+	x: number;
+	y: number;
+	zIndex: number;
+	eventMode: string;
+	scale: { x: number; y: number };
+	parent: { removeChild(child: PixiGraphics): void } | null;
+	clear(): void;
+	lineStyle(width: number, color: number, alpha: number): void;
+	drawCircle(x: number, y: number, radius: number): void;
+	destroy(): void;
+}
+
+export interface PixiContainer {
+	addChild(child: PixiGraphics): void;
 }
 
 export interface GraphNode {
@@ -15,7 +34,11 @@ export interface GraphNode {
 	type: string;
 	forward: Record<string, unknown>;
 	reverse: Record<string, unknown>;
+	x: number;
+	y: number;
+	fadeAlpha: number;
 	renderer: GraphRenderer;
+	circle?: PixiDisplay;
 	text?: PixiDisplay;
 	getFillColor(): GraphColor;
 	getSize(): number;
@@ -35,6 +58,10 @@ export interface GraphRenderer {
 	nodes: GraphNode[];
 	links: GraphLink[];
 	nodeLookup: Record<string, GraphNode>;
+	hanger: PixiContainer;
+	/** Zoom level. */
+	scale: number;
+	nodeScale: number;
 	setData(data: unknown): void;
 	changed(): void;
 }

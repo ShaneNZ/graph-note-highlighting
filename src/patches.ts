@@ -1,11 +1,20 @@
 import { nodeOpacity } from './opacity';
-import type { GraphLink, GraphNode, GraphRenderer, GraphState, TabRole } from './types';
+import type { GraphLink, GraphNode, GraphRenderer, GraphState, PixiGraphics, TabRole } from './types';
 
 export interface StyleOptions {
 	recolor: Record<TabRole, number | null>; // rgb, or null to keep the group colour
 	size: Record<TabRole, number>;
+	ring: Record<TabRole, RingStyle | null>; // null for no ring
 	dimLabels: boolean;
 	dimLinks: boolean;
+}
+
+export interface RingStyle {
+	rgb: number;
+	/** Line thickness in screen pixels at normal zoom. */
+	width: number;
+	/** Space between the node and the ring, in screen pixels at normal zoom. */
+	gap: number;
 }
 
 type AnyFn = (...args: unknown[]) => unknown;
@@ -20,6 +29,7 @@ export class GraphPatcher {
 	private restores: (() => void)[] = [];
 	private patchedProtos = new Set<object>();
 	private linkBase = new WeakMap<GraphLink, { line: number; arrow: number }>();
+	private rings = new Map<GraphNode, PixiGraphics>();
 
 	constructor(
 		private getStyle: () => StyleOptions,
@@ -36,6 +46,7 @@ export class GraphPatcher {
 	}
 
 	uninstall(): void {
+		for (const node of [...this.rings.keys()]) this.removeRing(node);
 		for (const restore of this.restores.reverse()) restore();
 		this.restores = [];
 		this.patchedProtos.clear();
@@ -49,7 +60,63 @@ export class GraphPatcher {
 			getStyle: () => this.getStyle(),
 			ensurePatched: (r: GraphRenderer) => this.ensurePatched(r),
 			onData: (r: GraphRenderer) => this.onData(r),
+			updateRing: (n: GraphNode, st: GraphState | undefined) => this.updateRing(n, st),
+			removeRing: (n: GraphNode) => this.removeRing(n),
+			pruneRings: () => this.pruneRings(),
 		};
+	}
+
+	/**
+	 * Draw (or remove) the ring around an open note. Drawn the same way Obsidian draws
+	 * its hover ring: a PIXI.Graphics on the renderer's hanger, scaled with the nodes.
+	 */
+	private updateRing(node: GraphNode, state: GraphState | undefined): void {
+		const role = state?.roles.get(node.id);
+		const style = role ? this.getStyle().ring[role] : null;
+		if (!style || !node.circle) {
+			this.removeRing(node);
+			return;
+		}
+
+		let ring = this.rings.get(node);
+		if (!ring) {
+			const PIXI = (window as unknown as { PIXI?: { Graphics: new () => PixiGraphics } }).PIXI;
+			if (!PIXI) return;
+			ring = new PIXI.Graphics();
+			ring.eventMode = 'none';
+			ring.zIndex = 1;
+			node.renderer.hanger.addChild(ring);
+			this.rings.set(node, ring);
+		}
+
+		const r = node.renderer;
+		ring.visible = node.circle.visible;
+		if (!ring.visible) return;
+		// One screen pixel in node-local units, never thinner than Obsidian's own ring.
+		const px = Math.max(1, 1 / r.scale / r.nodeScale);
+		const width = style.width * px;
+		ring.x = node.x;
+		ring.y = node.y;
+		ring.scale.x = ring.scale.y = r.nodeScale;
+		ring.alpha = node.fadeAlpha ?? 1;
+		ring.clear();
+		ring.lineStyle(width, style.rgb, 1);
+		ring.drawCircle(0, 0, node.getSize() + style.gap * px + width / 2);
+	}
+
+	/** Remove rings left on node objects the graph has replaced (it rebuilds nodes on new data). */
+	pruneRings(): void {
+		for (const node of [...this.rings.keys()]) {
+			if (node.renderer.nodeLookup[node.id] !== node) this.removeRing(node);
+		}
+	}
+
+	private removeRing(node: GraphNode): void {
+		const ring = this.rings.get(node);
+		if (!ring) return;
+		ring.parent?.removeChild(ring);
+		ring.destroy();
+		this.rings.delete(node);
 	}
 
 	private around(proto: object, name: string, wrap: (orig: AnyFn) => AnyFn): void {
@@ -77,6 +144,7 @@ export class GraphPatcher {
 				const result = orig.apply(this, args);
 				try {
 					self.ensurePatched(this);
+					self.pruneRings();
 					self.onData(this);
 				} catch (e) {
 					console.error('Graph Note Highlighting: failed to restyle graph', e);
@@ -116,7 +184,15 @@ export class GraphPatcher {
 				if (state && this.text && self.getStyle().dimLabels) {
 					this.text.alpha *= nodeOpacity(state, this.id);
 				}
+				self.updateRing(this, state);
 				return result;
+			},
+		);
+
+		this.around(proto, 'clearGraphics', (orig) =>
+			function (this: GraphNode, ...args: unknown[]) {
+				self.removeRing(this);
+				return orig.apply(this, args);
 			},
 		);
 	}
