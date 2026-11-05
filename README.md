@@ -17,11 +17,11 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 
 | Setting | Default |
 |---|---|
-| Active note colour (or keep its colour group colour) / size | red, 1.6× |
-| Active note ring: colour / width / gap | white, 2 px, 2 px |
-| Visible note colour (or keep its colour group colour) / size | orange, 1.3× |
-| Visible note ring: colour / width / gap | orange, 1 px, 2 px |
-| Visible note reach (relative to the active note) | 0.7 |
+| Active note colour (or keep its colour group colour) / size | kept, 1× |
+| Active note ring: colour / width / gap | white, 2 px, 3 px |
+| Visible note colour (or keep its colour group colour) / size | white, 1× |
+| Visible note ring: colour / width / gap | off (white, 1 px, 2 px) |
+| Visible note reach (relative to the active note) | 0.8 |
 | Brightness kept per hop | 0.5 |
 | Minimum opacity | 0.1 |
 | Count notes in expanded sidebars | on |
