@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type GraphNoteHighlightingPlugin from './main';
+import type { VisibleScope } from './tabs';
 import type { TabRole } from './types';
 
 export interface GraphNoteHighlightingSettings {
@@ -23,6 +24,7 @@ export interface GraphNoteHighlightingSettings {
 	visibleRingWidth: number;
 	visibleRingGap: number;
 	visibleWeight: number;
+	visibleScope: VisibleScope;
 	includeSidebars: boolean;
 
 	fadePerHop: number;
@@ -52,6 +54,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	visibleRingWidth: 1,
 	visibleRingGap: 2,
 	visibleWeight: 0.8,
+	visibleScope: 'onscreen',
 	includeSidebars: true,
 
 	fadePerHop: 0.5,
@@ -178,7 +181,20 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 
 		this.roleSection(el, 'active', 'Active note', 'the note you are editing');
 
-		this.roleSection(el, 'visible', 'Visible notes', 'notes showing in other panes');
+		this.roleSection(el, 'visible', 'Visible notes', 'visible notes');
+		new Setting(el)
+			.setName('Count as visible')
+			.setDesc('Which other open notes count as visible. Notes showing in other panes always count.')
+			.addDropdown((d) =>
+				d
+					.addOptions({
+						onscreen: 'Notes on screen only',
+						split: 'Plus background tabs in the active split',
+						all: 'Plus all background tabs',
+					})
+					.setValue(this.plugin.settings.visibleScope)
+					.onChange(async (v) => this.set('visibleScope', v as VisibleScope)),
+			);
 		this.slider(
 			el,
 			'Reach',

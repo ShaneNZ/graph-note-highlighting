@@ -123,7 +123,11 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 		const seeds = this.applies(renderer)
 			? collectSeeds(
 					this.app,
-					{ visibleWeight: this.settings.visibleWeight, includeSidebars: this.settings.includeSidebars },
+					{
+						visibleWeight: this.settings.visibleWeight,
+						includeSidebars: this.settings.includeSidebars,
+						scope: this.settings.visibleScope,
+					},
 					this.lastFileLeaf,
 				)
 			: [];
