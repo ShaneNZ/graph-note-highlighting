@@ -66,7 +66,7 @@ export interface GraphRenderer {
 	changed(): void;
 }
 
-export type TabRole = 'active' | 'visible';
+export type TabRole = 'active' | 'open';
 
 /** Per-renderer computed styling, looked up from the patched prototype methods. */
 export interface GraphState {

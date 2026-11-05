@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type GraphNoteHighlightingPlugin from './main';
-import type { VisibleScope } from './tabs';
+import type { OpenScope } from './tabs';
 import type { TabRole } from './types';
 
 export interface GraphNoteHighlightingSettings {
@@ -16,15 +16,15 @@ export interface GraphNoteHighlightingSettings {
 	activeRingWidth: number;
 	activeRingGap: number;
 
-	recolorVisible: boolean;
-	visibleColor: string;
-	visibleSize: number;
-	visibleRing: boolean;
-	visibleRingColor: string;
-	visibleRingWidth: number;
-	visibleRingGap: number;
-	visibleWeight: number;
-	visibleScope: VisibleScope;
+	recolorOpen: boolean;
+	openColor: string;
+	openSize: number;
+	openRing: boolean;
+	openRingColor: string;
+	openRingWidth: number;
+	openRingGap: number;
+	openWeight: number;
+	openScope: OpenScope;
 	includeSidebars: boolean;
 
 	fadePerHop: number;
@@ -46,15 +46,15 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeRingWidth: 2,
 	activeRingGap: 3,
 
-	recolorVisible: true,
-	visibleColor: '#ffffff',
-	visibleSize: 1,
-	visibleRing: false,
-	visibleRingColor: '#ffffff',
-	visibleRingWidth: 1,
-	visibleRingGap: 2,
-	visibleWeight: 0.8,
-	visibleScope: 'onscreen',
+	recolorOpen: true,
+	openColor: '#ffffff',
+	openSize: 1,
+	openRing: false,
+	openRingColor: '#ffffff',
+	openRingWidth: 1,
+	openRingGap: 2,
+	openWeight: 0.8,
+	openScope: 'onscreen',
 	includeSidebars: true,
 
 	fadePerHop: 0.5,
@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 type Settings = GraphNoteHighlightingSettings;
 type KeysOfType<T> = { [K in keyof Settings]: Settings[K] extends T ? K : never }[keyof Settings];
 
-/** Settings keys for the per-role options, so active and visible share one builder. */
+/** Settings keys for the per-role options, so active and open share one builder. */
 const ROLE_KEYS = {
 	active: {
 		recolor: 'recolorActive',
@@ -77,14 +77,14 @@ const ROLE_KEYS = {
 		ringWidth: 'activeRingWidth',
 		ringGap: 'activeRingGap',
 	},
-	visible: {
-		recolor: 'recolorVisible',
-		color: 'visibleColor',
-		size: 'visibleSize',
-		ring: 'visibleRing',
-		ringColor: 'visibleRingColor',
-		ringWidth: 'visibleRingWidth',
-		ringGap: 'visibleRingGap',
+	open: {
+		recolor: 'recolorOpen',
+		color: 'openColor',
+		size: 'openSize',
+		ring: 'openRing',
+		ringColor: 'openRingColor',
+		ringWidth: 'openRingWidth',
+		ringGap: 'openRingGap',
 	},
 } as const satisfies Record<TabRole, Record<string, keyof Settings>>;
 
@@ -181,7 +181,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 
 		this.roleSection(el, 'active', 'Active note', 'the note you are editing');
 
-		this.roleSection(el, 'visible', 'Open notes', 'open notes');
+		this.roleSection(el, 'open', 'Open notes', 'open notes');
 		new Setting(el)
 			.setName('Count as open')
 			.setDesc('Which other notes count as open. Notes showing in other panes always count.')
@@ -192,14 +192,14 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 						split: 'Plus background tabs in the active split',
 						all: 'Plus all background tabs',
 					})
-					.setValue(this.plugin.settings.visibleScope)
-					.onChange(async (v) => this.set('visibleScope', v as VisibleScope)),
+					.setValue(this.plugin.settings.openScope)
+					.onChange(async (v) => this.set('openScope', v as OpenScope)),
 			);
 		this.slider(
 			el,
 			'Reach',
 			'How strongly an open note lights up its neighbours, relative to the active note.',
-			'visibleWeight',
+			'openWeight',
 			0,
 			1,
 			0.05,

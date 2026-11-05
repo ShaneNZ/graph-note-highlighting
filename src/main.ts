@@ -9,6 +9,24 @@ function hexToRgb(hex: string): number {
 	return parseInt(hex.replace('#', ''), 16);
 }
 
+/**
+ * Settings saved before 0.2.0 called open notes "visible" notes
+ * (recolorVisible, visibleColor, …). Move those values to the new keys.
+ * Returns true if anything changed.
+ */
+function migrateVisibleKeys(data: Record<string, unknown>): boolean {
+	let changed = false;
+	for (const oldKey of Object.keys(data)) {
+		const newKey =
+			oldKey === 'recolorVisible' ? 'recolorOpen' : oldKey.startsWith('visible') ? 'open' + oldKey.slice(7) : null;
+		if (!newKey) continue;
+		if (!(newKey in data)) data[newKey] = data[oldKey];
+		delete data[oldKey];
+		changed = true;
+	}
+	return changed;
+}
+
 export default class GraphNoteHighlightingPlugin extends Plugin {
 	settings: GraphNoteHighlightingSettings = { ...DEFAULT_SETTINGS };
 	private patcher!: GraphPatcher;
@@ -55,7 +73,10 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<GraphNoteHighlightingSettings>) };
+		const data = ((await this.loadData()) ?? {}) as Record<string, unknown>;
+		const migrated = migrateVisibleKeys(data);
+		this.settings = { ...DEFAULT_SETTINGS, ...(data as Partial<GraphNoteHighlightingSettings>) };
+		if (migrated) await this.saveData(this.settings);
 		this.updateStyle();
 	}
 
@@ -70,15 +91,15 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 		this.style = {
 			recolor: {
 				active: s.recolorActive ? hexToRgb(s.activeColor) : null,
-				visible: s.recolorVisible ? hexToRgb(s.visibleColor) : null,
+				open: s.recolorOpen ? hexToRgb(s.openColor) : null,
 			},
-			size: { active: s.activeSize, visible: s.visibleSize },
+			size: { active: s.activeSize, open: s.openSize },
 			ring: {
 				active: s.activeRing
 					? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
 					: null,
-				visible: s.visibleRing
-					? { rgb: hexToRgb(s.visibleRingColor), width: s.visibleRingWidth, gap: s.visibleRingGap }
+				open: s.openRing
+					? { rgb: hexToRgb(s.openRingColor), width: s.openRingWidth, gap: s.openRingGap }
 					: null,
 			},
 			dimLabels: s.dimLabels,
@@ -124,9 +145,9 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			? collectSeeds(
 					this.app,
 					{
-						visibleWeight: this.settings.visibleWeight,
+						openWeight: this.settings.openWeight,
 						includeSidebars: this.settings.includeSidebars,
-						scope: this.settings.visibleScope,
+						scope: this.settings.openScope,
 					},
 					this.lastFileLeaf,
 				)

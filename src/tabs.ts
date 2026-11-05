@@ -4,17 +4,17 @@ import type { Seed } from './opacity';
 export const GRAPH_VIEW_TYPES = ['graph', 'localgraph'];
 
 /**
- * Which notes count as visible, besides the active one:
+ * Which notes count as open, besides the active one:
  * - onscreen: notes showing in other panes
  * - split: those, plus background tabs in the active note's tab group
  * - all: those, plus every background tab
  */
-export type VisibleScope = 'onscreen' | 'split' | 'all';
+export type OpenScope = 'onscreen' | 'split' | 'all';
 
 export interface TabOptions {
-	visibleWeight: number;
+	openWeight: number;
 	includeSidebars: boolean;
-	scope: VisibleScope;
+	scope: OpenScope;
 }
 
 interface TabsParent {
@@ -83,7 +83,7 @@ function activeLeaf(app: App, lastFileLeaf: WorkspaceLeaf | null): WorkspaceLeaf
 	return stillOpen && isFileLeaf(lastFileLeaf) ? lastFileLeaf : null;
 }
 
-/** Whether a non-active leaf's note counts as visible under the chosen scope. */
+/** Whether a non-active leaf's note counts as open under the chosen scope. */
 function counts(app: App, leaf: WorkspaceLeaf, active: WorkspaceLeaf | null, opts: TabOptions): boolean {
 	if (isShowing(app, leaf, opts.includeSidebars)) return true;
 	switch (opts.scope) {
@@ -98,7 +98,7 @@ function counts(app: App, leaf: WorkspaceLeaf, active: WorkspaceLeaf | null, opt
 
 /**
  * The note being edited (active) plus the other open notes that count as
- * visible under the chosen scope.
+ * open under the chosen scope.
  */
 export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: WorkspaceLeaf | null): Seed[] {
 	const seeds: Seed[] = [];
@@ -112,7 +112,7 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 		if (!path || seen.has(path)) return;
 		if (!counts(app, leaf, active, opts)) return;
 		seen.add(path);
-		seeds.push({ path, role: 'visible', weight: opts.visibleWeight });
+		seeds.push({ path, role: 'open', weight: opts.openWeight });
 	});
 	return seeds;
 }
