@@ -159,7 +159,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		this.toggledColor(
 			el,
 			'Colour',
-			`Recolour ${noteDesc}. Off keeps its colour group colour.`,
+			`Recolour ${noteDesc}. Off keeps the colour group colour.`,
 			k.recolor,
 			k.color,
 		);
@@ -181,10 +181,10 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 
 		this.roleSection(el, 'active', 'Active note', 'the note you are editing');
 
-		this.roleSection(el, 'visible', 'Visible notes', 'visible notes');
+		this.roleSection(el, 'visible', 'Open notes', 'open notes');
 		new Setting(el)
-			.setName('Count as visible')
-			.setDesc('Which other open notes count as visible. Notes showing in other panes always count.')
+			.setName('Count as open')
+			.setDesc('Which other notes count as open. Notes showing in other panes always count.')
 			.addDropdown((d) =>
 				d
 					.addOptions({
@@ -198,7 +198,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		this.slider(
 			el,
 			'Reach',
-			'How strongly a visible note lights up its neighbours, relative to the active note.',
+			'How strongly an open note lights up its neighbours, relative to the active note.',
 			'visibleWeight',
 			0,
 			1,
@@ -207,7 +207,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		this.toggle(
 			el,
 			'Include sidebars',
-			'Count notes open in an expanded sidebar as visible notes.',
+			'Count notes in the sidebars as open notes. With notes on screen only, the sidebar must be expanded.',
 			'includeSidebars',
 		);
 
