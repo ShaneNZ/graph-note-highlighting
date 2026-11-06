@@ -1,6 +1,6 @@
 {
 	"name": "graph-note-highlighting",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Highlights the notes you have open in tabs on the graph view, and fades the rest by link distance.",
 	"main": "main.js",
 	"type": "module",
