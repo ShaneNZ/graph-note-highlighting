@@ -74,7 +74,12 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 
 	async loadSettings() {
 		const data = ((await this.loadData()) ?? {}) as Record<string, unknown>;
-		const migrated = migrateVisibleKeys(data);
+		let migrated = migrateVisibleKeys(data);
+		// 0.3.0 and earlier had an "on screen only" scope, now folded into "Tabs in the active split".
+		if (data.openScope === 'onscreen') {
+			data.openScope = 'split';
+			migrated = true;
+		}
 		this.settings = { ...DEFAULT_SETTINGS, ...(data as Partial<GraphNoteHighlightingSettings>) };
 		if (migrated) await this.saveData(this.settings);
 		this.updateStyle();

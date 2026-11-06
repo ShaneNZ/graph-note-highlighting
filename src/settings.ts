@@ -62,7 +62,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	openRingWidth: 1,
 	openRingGap: 2,
 	openWeight: 0.8,
-	openScope: 'onscreen',
+	openScope: 'split',
 	includeSidebars: true,
 	openIncludeTags: true,
 	openShowNames: false,
@@ -216,9 +216,8 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			.addDropdown((d) =>
 				d
 					.addOptions({
-						onscreen: 'Notes on screen only',
-						split: 'Plus background tabs in the active split',
-						all: 'Plus all background tabs',
+						split: 'Tabs in the active split',
+						all: 'All tabs',
 					})
 					.setValue(this.plugin.settings.openScope)
 					.onChange(async (v) => this.set('openScope', v as OpenScope)),
@@ -235,7 +234,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		this.toggle(
 			el,
 			'Include sidebars',
-			'Count notes in the sidebars as open notes. With notes on screen only, the sidebar must be expanded.',
+			'Count notes in the sidebars as open notes. With tabs in the active split, the sidebar must be expanded.',
 			'includeSidebars',
 		);
 		this.toggle(

@@ -4,12 +4,12 @@ import type { Seed } from './opacity';
 export const GRAPH_VIEW_TYPES = ['graph', 'localgraph'];
 
 /**
- * Which notes count as open, besides the active one:
- * - onscreen: notes showing in other panes
- * - split: those, plus background tabs in the active note's tab group
- * - all: those, plus every background tab
+ * Which notes count as open, besides the active one. Notes showing in other
+ * panes always count; on top of those:
+ * - split: background tabs in the active note's tab group
+ * - all: every background tab
  */
-export type OpenScope = 'onscreen' | 'split' | 'all';
+export type OpenScope = 'split' | 'all';
 
 export interface TabOptions {
 	openWeight: number;
@@ -89,8 +89,6 @@ function activeLeaf(app: App, lastFileLeaf: WorkspaceLeaf | null): WorkspaceLeaf
 function counts(app: App, leaf: WorkspaceLeaf, active: WorkspaceLeaf | null, opts: TabOptions): boolean {
 	if (isShowing(app, leaf, opts.includeSidebars)) return true;
 	switch (opts.scope) {
-		case 'onscreen':
-			return false;
 		case 'split':
 			return !!active && parentOf(leaf) === parentOf(active);
 		case 'all':

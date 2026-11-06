@@ -25,7 +25,7 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 | Open note colour (or keep its colour group colour) / size | white, 1× |
 | Open note ring: colour / width / gap | off (white, 1 px, 2 px) |
 | Open note reach (relative to the active note) | 0.8 |
-| Count as open: notes on screen only / plus background tabs in the active split / plus all background tabs | on screen only |
+| Count as open: tabs in the active split / all tabs (notes showing in other panes always count) | tabs in the active split |
 | Brightness kept per hop | 0.5 |
 | Minimum opacity | 0.1 |
 | Count notes in the sidebars | on |
