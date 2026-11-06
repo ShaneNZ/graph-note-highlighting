@@ -40,7 +40,9 @@ export interface GraphNode {
 	fadeAlpha: number;
 	renderer: GraphRenderer;
 	circle?: PixiDisplay;
-	text?: PixiDisplay;
+	text?: PixiDisplay & { x: number; y: number; scale: { x: number; y: number } };
+	/** Label offset Obsidian eases in while the node is hovered. */
+	moveText?: number;
 	getFillColor(): GraphColor;
 	getSize(): number;
 	render(): void;
@@ -62,6 +64,9 @@ export interface GraphRenderer {
 	hanger: PixiContainer;
 	/** Zoom level. */
 	scale: number;
+	/** Label opacity for the current zoom level. */
+	textAlpha: number;
+	colors: { text: GraphColor };
 	nodeScale: number;
 	setData(data: unknown): void;
 	changed(): void;
@@ -82,5 +87,7 @@ export interface GraphState {
 	roles: Map<string, NodeRole>;
 	/** The active note's id when its links are highlighted, otherwise null. */
 	connectedTo: string | null;
+	/** Nodes whose names show at every zoom level. */
+	labelled: Set<string>;
 	minOpacity: number;
 }

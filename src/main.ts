@@ -168,6 +168,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 					fadePerHop: this.settings.fadePerHop,
 					minOpacity: this.settings.minOpacity,
 					highlightConnected: this.settings.highlightConnected,
+					activeShowNames: this.settings.activeShowNames,
+					openShowNames: this.settings.openShowNames,
 				}),
 			);
 		} else {

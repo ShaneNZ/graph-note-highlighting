@@ -17,6 +17,7 @@ export interface GraphNoteHighlightingSettings {
 	activeRingGap: number;
 	highlightConnected: boolean;
 	activeIncludeTags: boolean;
+	activeShowNames: boolean;
 
 	recolorOpen: boolean;
 	openColor: string;
@@ -29,6 +30,7 @@ export interface GraphNoteHighlightingSettings {
 	openScope: OpenScope;
 	includeSidebars: boolean;
 	openIncludeTags: boolean;
+	openShowNames: boolean;
 
 	fadePerHop: number;
 	minOpacity: number;
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeRingGap: 3,
 	highlightConnected: false,
 	activeIncludeTags: true,
+	activeShowNames: true,
 
 	recolorOpen: true,
 	openColor: '#ffffff',
@@ -62,6 +65,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	openScope: 'onscreen',
 	includeSidebars: true,
 	openIncludeTags: true,
+	openShowNames: false,
 
 	fadePerHop: 0.5,
 	minOpacity: 0.1,
@@ -198,6 +202,12 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'When the graph shows tags, light up tags on the active note and the notes that share them. Off leaves tags faded.',
 			'activeIncludeTags',
 		);
+		this.toggle(
+			el,
+			'Display node names',
+			'Show the names of notes linked to the active note at every zoom level.',
+			'activeShowNames',
+		);
 
 		this.roleSection(el, 'open', 'Open notes', 'open notes');
 		new Setting(el)
@@ -234,6 +244,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'When the graph shows tags, light up tags on open notes and the notes that share them. Off leaves tags faded.',
 			'openIncludeTags',
 		);
+		this.toggle(el, 'Display node names', 'Show the names of open notes at every zoom level.', 'openShowNames');
 
 		new Setting(el).setName('Fading').setHeading();
 		this.slider(

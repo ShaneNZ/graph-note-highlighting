@@ -15,6 +15,10 @@ export interface OpacityOptions {
 	minOpacity: number;
 	/** Highlight the notes linked to the active note. */
 	highlightConnected: boolean;
+	/** Always show the names of notes linked to the active note. */
+	activeShowNames: boolean;
+	/** Always show the names of open notes. */
+	openShowNames: boolean;
 }
 
 /** Contributions smaller than this are treated as zero, which bounds the search depth. */
@@ -79,16 +83,22 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 		}
 	}
 
-	// Notes one link from the active note, unless they are open in a tab themselves.
 	const roles: Map<string, NodeRole> = tabRoles;
+	const labelled = new Set<string>();
+	if (opts.openShowNames) {
+		for (const [id, role] of tabRoles) if (role === 'open') labelled.add(id);
+	}
+
+	// Notes one link from the active note. They are highlighted unless open in a tab themselves.
 	const active = seeds.find((s) => s.role === 'active' && renderer.nodeLookup[s.path]);
 	const connectedTo = opts.highlightConnected && active ? active.path : null;
-	if (connectedTo) {
-		const node = renderer.nodeLookup[connectedTo]!;
+	if (active) {
+		const node = renderer.nodeLookup[active.path]!;
 		for (const id of [...Object.keys(node.forward), ...Object.keys(node.reverse)]) {
-			if (!renderer.nodeLookup[id] || roles.has(id)) continue;
-			if (!active!.includeTags && isTag(renderer, id)) continue;
-			roles.set(id, 'connected');
+			if (id === active.path || !renderer.nodeLookup[id]) continue;
+			if (!active.includeTags && isTag(renderer, id)) continue;
+			if (opts.activeShowNames) labelled.add(id);
+			if (connectedTo && !roles.has(id)) roles.set(id, 'connected');
 		}
 	}
 
@@ -96,7 +106,7 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 	for (const [id, dark] of darkness) alpha.set(id, 1 - dark);
 	for (const id of roles.keys()) alpha.set(id, 1); // highlighted notes are always fully visible
 
-	return { alpha, roles, connectedTo, minOpacity: opts.minOpacity };
+	return { alpha, roles, connectedTo, labelled, minOpacity: opts.minOpacity };
 }
 
 /** Final opacity for a node: the computed light, floored at the minimum. */

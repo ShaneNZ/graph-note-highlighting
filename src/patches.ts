@@ -22,6 +22,23 @@ export interface RingStyle {
 type AnyFn = (...args: unknown[]) => unknown;
 
 /**
+ * Show a node's name whatever the zoom level. Obsidian hides names when zoomed out;
+ * this places the label the way Obsidian places a hovered node's label, at a
+ * readable size, still fading with the node when another note is hovered.
+ */
+function showLabel(node: GraphNode): void {
+	const text = node.text;
+	if (!text || !node.circle?.visible) return;
+	const r = node.renderer;
+	const f = r.nodeScale;
+	text.visible = true;
+	text.x = node.x;
+	text.y = node.y + (node.getSize() + 5) * f + (node.moveText ?? 0) / r.scale;
+	text.scale.x = text.scale.y = r.scale < 1 ? 1 / r.scale : f;
+	text.alpha = (node.fadeAlpha ?? 1) * r.colors.text.a;
+}
+
+/**
  * Patches the prototypes of Obsidian's graph node, link and renderer classes.
  * One patch covers every graph (global and local) and every node created later,
  * and Obsidian's own colour easing and hover fading keep working on top.
@@ -183,6 +200,7 @@ export class GraphPatcher {
 			function (this: GraphNode, ...args: unknown[]) {
 				const result = orig.apply(this, args);
 				const state = self.states.get(this.renderer);
+				if (state?.labelled.has(this.id)) showLabel(this);
 				if (state && this.text && self.getStyle().dimLabels) {
 					this.text.alpha *= nodeOpacity(state, this.id);
 				}
