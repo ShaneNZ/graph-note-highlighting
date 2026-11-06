@@ -1,5 +1,5 @@
 import { nodeOpacity } from './opacity';
-import type { GraphLink, GraphNode, GraphRenderer, GraphState, NodeRole, PixiGraphics } from './types';
+import type { GraphLink, GraphNode, GraphRenderer, GraphState, NodeRole, PixiContainer, PixiGraphics } from './types';
 
 export interface StyleOptions {
 	recolor: Record<NodeRole, number | null>; // rgb, or null to keep the group colour
@@ -75,6 +75,8 @@ export class GraphPatcher {
 	private patchedProtos = new Set<object>();
 	private linkBase = new WeakMap<GraphLink, { line: number; arrow: number; tint?: number }>();
 	private rings = new Map<GraphNode, PixiGraphics>();
+	private raised = new WeakSet<GraphLink>();
+	private overlays = new Map<GraphRenderer, PixiContainer>();
 
 	constructor(
 		private getStyle: () => StyleOptions,
@@ -92,6 +94,16 @@ export class GraphPatcher {
 
 	uninstall(): void {
 		for (const node of [...this.rings.keys()]) this.removeRing(node);
+		// Hand any raised links back to the graph's own layer, under the nodes.
+		for (const [renderer, overlay] of this.overlays) {
+			for (const child of [...overlay.children]) {
+				overlay.removeChild(child);
+				renderer.hanger.addChildAt(child, 0);
+			}
+			overlay.parent?.removeChild(overlay);
+			overlay.destroy();
+		}
+		this.overlays.clear();
 		for (const restore of this.restores.reverse()) restore();
 		this.restores = [];
 		this.patchedProtos.clear();
@@ -109,7 +121,52 @@ export class GraphPatcher {
 			removeRing: (n: GraphNode) => this.removeRing(n),
 			pruneRings: () => this.pruneRings(),
 			linkRadius: (n: GraphNode, st: GraphState | undefined) => this.linkRadius(n, st),
+			setRaised: (l: GraphLink, on: boolean) => this.setRaised(l, on),
 		};
+	}
+
+	/**
+	 * A container drawn above everything else in a graph, for highlighted links and rings.
+	 * Obsidian sorts the graph's layer by zIndex (lines 0, dots and arrows 1, names 2),
+	 * so the overlay sits at 3. It is also moved back to the end whenever something lands
+	 * after it between sorts.
+	 */
+	private overlay(renderer: GraphRenderer): PixiContainer | null {
+		let overlay = this.overlays.get(renderer);
+		if (!overlay) {
+			const PIXI = (window as unknown as { PIXI?: { Container: new () => PixiContainer } }).PIXI;
+			if (!PIXI) return null;
+			overlay = new PIXI.Container();
+			overlay.eventMode = 'none';
+			overlay.zIndex = 3;
+			this.overlays.set(renderer, overlay);
+		}
+		const layer = renderer.hanger;
+		if (layer.children[layer.children.length - 1] !== overlay) {
+			if (overlay.parent) overlay.parent.removeChild(overlay);
+			layer.addChild(overlay);
+		}
+		return overlay;
+	}
+
+	/**
+	 * Draw a link above every other line and node, or put it back under the nodes.
+	 * Raised links live in the overlay, below the rings. Moves only when the state changes.
+	 */
+	private setRaised(link: GraphLink, on: boolean): void {
+		if (on) this.overlay(link.renderer); // keep the overlay on top
+		if (on === this.raised.has(link)) return;
+		const overlay = this.overlay(link.renderer);
+		if (!overlay || !link.px) return;
+		for (const part of [link.arrow, link.px]) {
+			if (!part) continue;
+			const from = on ? link.renderer.hanger : overlay;
+			const to = on ? overlay : link.renderer.hanger;
+			from.removeChild(part);
+			to.addChildAt(part, 0);
+		}
+		if (on) this.raised.add(link);
+		else this.raised.delete(link);
 	}
 
 	/** The ring style for a node, or null if it has none. */
@@ -153,8 +210,12 @@ export class GraphPatcher {
 			ring = new PIXI.Graphics();
 			ring.eventMode = 'none';
 			ring.zIndex = 1;
-			node.renderer.hanger.addChild(ring);
+			const overlay = this.overlay(node.renderer);
+			if (!overlay) return;
+			overlay.addChild(ring);
 			this.rings.set(node, ring);
+		} else {
+			this.overlay(node.renderer); // keep the overlay on top
 		}
 
 		const r = node.renderer;
@@ -286,6 +347,10 @@ export class GraphPatcher {
 				const result = orig.apply(this, args);
 
 				const state = self.states.get(this.renderer);
+				const touchesActive =
+					!!state?.connectedTo && (state.connectedTo === this.source.id || state.connectedTo === this.target.id);
+				// Highlighted links draw over other lines and nodes, so nothing breaks them up.
+				self.setRaised(this, touchesActive);
 				if (!state || !this.line) return result;
 				trimToRings(this, self.linkRadius(this.source, state), self.linkRadius(this.target, state));
 				const style = self.getStyle();
@@ -305,7 +370,6 @@ export class GraphPatcher {
 				// Colour links to the active note, except while the mouse is over one of their ends,
 				// when Obsidian's own hover highlight takes over.
 				const hovered = this.renderer.getHighlightNode?.() ?? null;
-				const touchesActive = state.connectedTo === this.source.id || state.connectedTo === this.target.id;
 				if (touchesActive && hovered !== this.source && hovered !== this.target) {
 					saved.tint = this.line.tint;
 					this.line.tint = style.connectedLink;

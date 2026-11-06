@@ -26,8 +26,16 @@ export interface PixiGraphics extends PixiDisplay {
 	destroy(): void;
 }
 
+/** The graph's one flat layer (and our overlay). It isn't sorted, so later children draw on top. */
 export interface PixiContainer {
-	addChild(child: PixiGraphics): void;
+	children: unknown[];
+	parent: PixiContainer | null;
+	eventMode: string;
+	zIndex: number;
+	destroy(): void;
+	addChild(child: unknown): void;
+	addChildAt(child: unknown, index: number): void;
+	removeChild(child: unknown): void;
 }
 
 export interface GraphNode {
@@ -60,7 +68,7 @@ export interface GraphLink {
 	target: GraphNode;
 	renderer: GraphRenderer;
 	/** Container the line is drawn in, placed at the line's start and rotated along it. */
-	px?: { x: number; y: number };
+	px?: { x: number; y: number; parent: PixiContainer | null };
 	line?: PixiSprite;
 	arrow?: PixiSprite;
 	render(): void;
