@@ -152,6 +152,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 					this.app,
 					{
 						openWeight: this.settings.openWeight,
+						activeIncludeTags: this.settings.activeIncludeTags,
+						openIncludeTags: this.settings.openIncludeTags,
 						includeSidebars: this.settings.includeSidebars,
 						scope: this.settings.openScope,
 					},

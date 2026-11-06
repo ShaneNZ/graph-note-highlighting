@@ -19,6 +19,7 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 |---|---|
 | Active note colour (or keep its colour group colour) / size | kept, 1× |
 | Active note ring: colour / width / gap | white, 2 px, 3 px |
+| Active note: include tags (when the graph shows tags, light up its tags and the notes that share them) | on |
 | Highlight connected notes: notes linked to the active note get its colour and ring, and their links are drawn in the ring colour | off |
 | Open note colour (or keep its colour group colour) / size | white, 1× |
 | Open note ring: colour / width / gap | off (white, 1 px, 2 px) |
@@ -27,6 +28,7 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 | Brightness kept per hop | 0.5 |
 | Minimum opacity | 0.1 |
 | Count notes in the sidebars | on |
+| Open notes: include tags (when the graph shows tags, light up their tags and the notes that share them) | on |
 | Fade labels / fade links | on |
 
 A command, **Toggle graph highlighting**, turns it on and off.

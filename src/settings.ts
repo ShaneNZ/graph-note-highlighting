@@ -16,6 +16,7 @@ export interface GraphNoteHighlightingSettings {
 	activeRingWidth: number;
 	activeRingGap: number;
 	highlightConnected: boolean;
+	activeIncludeTags: boolean;
 
 	recolorOpen: boolean;
 	openColor: string;
@@ -27,6 +28,7 @@ export interface GraphNoteHighlightingSettings {
 	openWeight: number;
 	openScope: OpenScope;
 	includeSidebars: boolean;
+	openIncludeTags: boolean;
 
 	fadePerHop: number;
 	minOpacity: number;
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeRingWidth: 2,
 	activeRingGap: 3,
 	highlightConnected: false,
+	activeIncludeTags: true,
 
 	recolorOpen: true,
 	openColor: '#ffffff',
@@ -58,6 +61,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	openWeight: 0.8,
 	openScope: 'onscreen',
 	includeSidebars: true,
+	openIncludeTags: true,
 
 	fadePerHop: 0.5,
 	minOpacity: 0.1,
@@ -188,6 +192,12 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			"Give notes linked to the active note the active note's colour and ring, and draw their links in the ring colour.",
 			'highlightConnected',
 		);
+		this.toggle(
+			el,
+			'Include tags',
+			'When the graph shows tags, light up tags on the active note and the notes that share them. Off leaves tags faded.',
+			'activeIncludeTags',
+		);
 
 		this.roleSection(el, 'open', 'Open notes', 'open notes');
 		new Setting(el)
@@ -217,6 +227,12 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'Include sidebars',
 			'Count notes in the sidebars as open notes. With notes on screen only, the sidebar must be expanded.',
 			'includeSidebars',
+		);
+		this.toggle(
+			el,
+			'Include tags',
+			'When the graph shows tags, light up tags on open notes and the notes that share them. Off leaves tags faded.',
+			'openIncludeTags',
 		);
 
 		new Setting(el).setName('Fading').setHeading();

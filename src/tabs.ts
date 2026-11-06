@@ -13,6 +13,8 @@ export type OpenScope = 'onscreen' | 'split' | 'all';
 
 export interface TabOptions {
 	openWeight: number;
+	activeIncludeTags: boolean;
+	openIncludeTags: boolean;
 	includeSidebars: boolean;
 	scope: OpenScope;
 }
@@ -104,7 +106,7 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 	const seeds: Seed[] = [];
 	const active = activeLeaf(app, lastFileLeaf);
 	const activePath = active ? leafFilePath(app, active) : null;
-	if (activePath) seeds.push({ path: activePath, role: 'active', weight: 1 });
+	if (activePath) seeds.push({ path: activePath, role: 'active', weight: 1, includeTags: opts.activeIncludeTags });
 
 	const seen = new Set(seeds.map((s) => s.path));
 	app.workspace.iterateAllLeaves((leaf) => {
@@ -112,7 +114,7 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 		if (!path || seen.has(path)) return;
 		if (!counts(app, leaf, active, opts)) return;
 		seen.add(path);
-		seeds.push({ path, role: 'open', weight: opts.openWeight });
+		seeds.push({ path, role: 'open', weight: opts.openWeight, includeTags: opts.openIncludeTags });
 	});
 	return seeds;
 }

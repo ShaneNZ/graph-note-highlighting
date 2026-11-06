@@ -5,6 +5,8 @@ export interface Seed {
 	role: TabRole;
 	/** How strongly this tab lights its neighbourhood, 0..1. */
 	weight: number;
+	/** Whether the light travels through tag nodes (when the graph shows tags). */
+	includeTags: boolean;
 }
 
 export interface OpacityOptions {
@@ -19,12 +21,22 @@ export interface OpacityOptions {
 const CUTOFF = 0.01;
 const MAX_DEPTH = 12;
 
+function isTag(renderer: GraphRenderer, id: string): boolean {
+	return renderer.nodeLookup[id]?.type === 'tag';
+}
+
 /**
  * Hop distances from one node over the graph's own links, ignoring direction.
+ * With includeTags off, tag nodes are neither reached nor travelled through.
  * Uses the renderer's links, so the result respects the graph's filters
  * (hidden folders, tags on/off, orphans) and never sees unlinked mentions.
  */
-function hopDistances(renderer: GraphRenderer, start: string, maxDepth: number): Map<string, number> {
+function hopDistances(
+	renderer: GraphRenderer,
+	start: string,
+	maxDepth: number,
+	includeTags: boolean,
+): Map<string, number> {
 	const dist = new Map<string, number>([[start, 0]]);
 	let frontier = [start];
 	for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
@@ -34,6 +46,7 @@ function hopDistances(renderer: GraphRenderer, start: string, maxDepth: number):
 			if (!node) continue;
 			for (const neighbour of [...Object.keys(node.forward), ...Object.keys(node.reverse)]) {
 				if (dist.has(neighbour) || !renderer.nodeLookup[neighbour]) continue;
+				if (!includeTags && isTag(renderer, neighbour)) continue;
 				dist.set(neighbour, d);
 				next.push(neighbour);
 			}
@@ -59,7 +72,7 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 		if (!renderer.nodeLookup[seed.path]) continue;
 		if (tabRoles.get(seed.path) !== 'active') tabRoles.set(seed.path, seed.role);
 
-		for (const [id, hops] of hopDistances(renderer, seed.path, maxDepth)) {
+		for (const [id, hops] of hopDistances(renderer, seed.path, maxDepth, seed.includeTags)) {
 			const c = seed.weight * Math.pow(fade, hops);
 			if (c < CUTOFF) continue;
 			darkness.set(id, (darkness.get(id) ?? 1) * (1 - c));
@@ -73,7 +86,9 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 	if (connectedTo) {
 		const node = renderer.nodeLookup[connectedTo]!;
 		for (const id of [...Object.keys(node.forward), ...Object.keys(node.reverse)]) {
-			if (renderer.nodeLookup[id] && !roles.has(id)) roles.set(id, 'connected');
+			if (!renderer.nodeLookup[id] || roles.has(id)) continue;
+			if (!active!.includeTags && isTag(renderer, id)) continue;
+			roles.set(id, 'connected');
 		}
 	}
 
