@@ -347,8 +347,13 @@ export class GraphPatcher {
 				const result = orig.apply(this, args);
 
 				const state = self.states.get(this.renderer);
+				// A link to the active note is highlighted only if its other end is a connected
+				// note, so links to tags stay plain when tags are excluded.
+				const active = state?.connectedTo;
 				const touchesActive =
-					!!state?.connectedTo && (state.connectedTo === this.source.id || state.connectedTo === this.target.id);
+					!!active &&
+					((this.source.id === active && state.connected.has(this.target.id)) ||
+						(this.target.id === active && state.connected.has(this.source.id)));
 				// Highlighted links draw over other lines and nodes, so nothing breaks them up.
 				self.setRaised(this, touchesActive);
 				if (!state || !this.line) return result;

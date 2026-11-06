@@ -101,11 +101,13 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 	// Notes one link from the active note. They are highlighted unless open in a tab themselves.
 	const active = seeds.find((s) => s.role === 'active' && renderer.nodeLookup[s.path]);
 	const connectedTo = opts.highlightConnected && active ? active.path : null;
+	const connected = new Set<string>();
 	if (active) {
 		const node = renderer.nodeLookup[active.path]!;
 		for (const id of [...Object.keys(node.forward), ...Object.keys(node.reverse)]) {
 			if (id === active.path || !renderer.nodeLookup[id]) continue;
 			if (!active.includeTags && isTag(renderer, id)) continue;
+			if (connectedTo) connected.add(id);
 			if (connectedTo && opts.connectedShowNames) labelled.add(id);
 			if (connectedTo && !roles.has(id)) roles.set(id, 'connected');
 		}
@@ -115,7 +117,7 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 	for (const [id, dark] of darkness) alpha.set(id, 1 - dark);
 	for (const id of roles.keys()) alpha.set(id, 1); // highlighted notes are always fully visible
 
-	return { alpha, roles, connectedTo, labelled, minOpacity: opts.minOpacity };
+	return { alpha, roles, connectedTo, connected, labelled, minOpacity: opts.minOpacity };
 }
 
 /** Final opacity for a node: its brightness, never below the minimum opacity. */

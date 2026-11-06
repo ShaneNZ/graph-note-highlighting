@@ -104,6 +104,8 @@ export interface GraphState {
 	roles: Map<string, NodeRole>;
 	/** The active note's id when its links are highlighted, otherwise null. */
 	connectedTo: string | null;
+	/** The active note's neighbours whose links are highlighted (tags left out when tags are excluded). */
+	connected: Set<string>;
 	/** Nodes whose names show at every zoom level. */
 	labelled: Set<string>;
 	minOpacity: number;
