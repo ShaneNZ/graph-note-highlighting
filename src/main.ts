@@ -1,8 +1,8 @@
-import { Plugin, debounce, type WorkspaceLeaf } from 'obsidian';
+import { Keymap, Plugin, debounce, type WorkspaceLeaf } from 'obsidian';
 import { computeState } from './opacity';
 import { GraphPatcher, type StyleOptions } from './patches';
 import { DEFAULT_SETTINGS, GraphNoteHighlightingSettingTab, type GraphNoteHighlightingSettings } from './settings';
-import { collectSeeds, isFileLeaf } from './tabs';
+import { collectSeeds, findOpenLeaf, isFileLeaf } from './tabs';
 import type { GraphRenderer } from './types';
 
 function hexToRgb(hex: string): number {
@@ -32,6 +32,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	private patcher!: GraphPatcher;
 	private style!: StyleOptions;
 	private lastFileLeaf: WorkspaceLeaf | null = null;
+	private clickRestores = new Map<GraphRenderer, () => void>();
 
 	async onload() {
 		await this.loadSettings();
@@ -68,6 +69,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	}
 
 	onunload() {
+		for (const restore of this.clickRestores.values()) restore();
+		this.clickRestores.clear();
 		this.patcher.uninstall();
 		for (const leaf of this.allGraphLeaves()) this.renderer(leaf)?.changed();
 	}
@@ -146,6 +149,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			const renderer = this.renderer(leaf);
 			if (!renderer) continue;
 			this.patcher.ensurePatched(renderer);
+			this.patchClicks(renderer);
 			this.restyle(renderer);
 		}
 	}
@@ -181,5 +185,33 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			this.patcher.states.delete(renderer);
 		}
 		renderer.changed();
+	}
+
+	/**
+	 * Clicking a note that is already open in a tab switches to that tab instead of
+	 * opening it again. Modifier clicks and tags keep Obsidian's behaviour. The click
+	 * handler is a bound copy on each renderer, so it is wrapped per renderer.
+	 */
+	private patchClicks(renderer: GraphRenderer) {
+		if (this.clickRestores.has(renderer)) return;
+		const target = renderer as unknown as { onNodeClick?: (evt: MouseEvent, id: string, type: string) => void };
+		const orig = target.onNodeClick;
+		if (typeof orig !== 'function') return;
+		const wrapped = (evt: MouseEvent, id: string, type: string) => {
+			if (this.settings.enabled && type !== 'tag' && !Keymap.isModEvent(evt)) {
+				const leaf = findOpenLeaf(this.app, id);
+				if (leaf) {
+					void this.app.workspace.revealLeaf(leaf).then(() => {
+						this.app.workspace.setActiveLeaf(leaf, { focus: true });
+					});
+					return;
+				}
+			}
+			orig(evt, id, type);
+		};
+		target.onNodeClick = wrapped;
+		this.clickRestores.set(renderer, () => {
+			if (target.onNodeClick === wrapped) target.onNodeClick = orig;
+		});
 	}
 }

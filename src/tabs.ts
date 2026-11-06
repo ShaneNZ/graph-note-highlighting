@@ -59,7 +59,7 @@ export function isFileLeaf(leaf: WorkspaceLeaf | null): boolean {
  * The file a leaf holds, including background tabs Obsidian hasn't loaded yet
  * (deferred views have no `file`, but their saved view state names it).
  */
-function leafFilePath(app: App, leaf: WorkspaceLeaf): string | null {
+export function leafFilePath(app: App, leaf: WorkspaceLeaf): string | null {
 	const view = leaf.view;
 	if (view instanceof FileView) {
 		if (GRAPH_VIEW_TYPES.includes(view.getViewType())) return null;
@@ -115,4 +115,23 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 		seeds.push({ path, role: 'open', weight: opts.openWeight, includeTags: opts.openIncludeTags });
 	});
 	return seeds;
+}
+
+/**
+ * The tab that holds a note, if it is open anywhere. Prefers the tab that is
+ * already active, then tabs in the main area, then sidebar tabs.
+ */
+export function findOpenLeaf(app: App, path: string): WorkspaceLeaf | null {
+	const ws = app.workspace;
+	const matches: WorkspaceLeaf[] = [];
+	ws.iterateAllLeaves((leaf) => {
+		if (leafFilePath(app, leaf) === path) matches.push(leaf);
+	});
+	const active = ws.getActiveViewOfType(FileView)?.leaf;
+	return (
+		matches.find((l) => l === active) ??
+		matches.find((l) => l.getRoot() === ws.rootSplit) ??
+		matches[0] ??
+		null
+	);
 }
