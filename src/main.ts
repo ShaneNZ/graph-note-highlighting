@@ -69,15 +69,6 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 		);
 		this.addSettingTab(new GraphNoteHighlightingSettingTab(this.app, this));
 
-		this.addCommand({
-			id: 'toggle',
-			name: 'Toggle graph highlighting',
-			callback: async () => {
-				this.settings.enabled = !this.settings.enabled;
-				await this.saveSettings();
-			},
-		});
-
 		const ws = this.app.workspace;
 		this.registerEvent(
 			ws.on('active-leaf-change', (leaf) => {
@@ -111,6 +102,24 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			migrated = true;
 		}
 		if (migrateConnectedKeys(data)) migrated = true;
+		// Before 0.5.0 the active and open note sections each had their own Include tags
+		// setting. They are now one; the active note's value wins.
+		if ('activeIncludeTags' in data || 'openIncludeTags' in data) {
+			if (!('includeTags' in data)) data.includeTags = data.activeIncludeTags ?? data.openIncludeTags;
+			delete data.activeIncludeTags;
+			delete data.openIncludeTags;
+			migrated = true;
+		}
+		// 0.5.0 removed the plugin-wide Enabled setting (and its toggle command).
+		if ('enabled' in data) {
+			delete data.enabled;
+			migrated = true;
+		}
+		// Before 0.5.0 brightness fell by a factor per hop; it now falls in even steps to a minimum.
+		if ('fadePerHop' in data) {
+			delete data.fadePerHop;
+			migrated = true;
+		}
 		this.settings = { ...DEFAULT_SETTINGS, ...(data as Partial<GraphNoteHighlightingSettings>) };
 		if (migrated) await this.saveData(this.settings);
 		this.updateStyle();
@@ -160,7 +169,6 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	}
 
 	private applies(renderer: GraphRenderer): boolean {
-		if (!this.settings.enabled) return false;
 		for (const leaf of this.allGraphLeaves()) {
 			if (this.renderer(leaf) !== renderer) continue;
 			const type = leaf.view.getViewType();
@@ -188,8 +196,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 					this.app,
 					{
 						openWeight: this.settings.openWeight,
-						activeIncludeTags: this.settings.activeIncludeTags,
-						openIncludeTags: this.settings.openIncludeTags,
+						highlightActive: this.settings.highlightActive,
+						includeTags: this.settings.includeTags,
 						includeSidebars: this.settings.includeSidebars,
 						scope: this.settings.openScope,
 					},
@@ -201,7 +209,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			this.patcher.states.set(
 				renderer,
 				computeState(renderer, seeds, {
-					fadePerHop: this.settings.fadePerHop,
+					maxHops: this.settings.maxHops,
+					minConnectedBrightness: this.settings.minConnectedBrightness,
 					minOpacity: this.settings.minOpacity,
 					highlightConnected: this.settings.highlightConnected,
 					connectedShowNames: this.settings.connectedShowNames,
@@ -225,7 +234,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 		const orig = target.onNodeClick;
 		if (typeof orig !== 'function') return;
 		const wrapped = (evt: MouseEvent, id: string, type: string) => {
-			if (this.settings.enabled && type !== 'tag' && !Keymap.isModEvent(evt)) {
+			if (type !== 'tag' && !Keymap.isModEvent(evt)) {
 				const leaf = findOpenLeaf(this.app, id);
 				if (leaf) {
 					void this.app.workspace.revealLeaf(leaf).then(() => {

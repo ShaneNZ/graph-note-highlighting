@@ -10,8 +10,10 @@ export interface Seed {
 }
 
 export interface OpacityOptions {
-	/** Fraction of brightness kept per hop, 0..1. */
-	fadePerHop: number;
+	/** How many links away from an open note are lit up. */
+	maxHops: number;
+	/** Brightness at the last lit hop; it falls in even steps from 1 down to this. */
+	minConnectedBrightness: number;
 	minOpacity: number;
 	/** Highlight the notes linked to the active note. */
 	highlightConnected: boolean;
@@ -21,9 +23,6 @@ export interface OpacityOptions {
 	openShowNames: boolean;
 }
 
-/** Contributions smaller than this are treated as zero, which bounds the search depth. */
-const CUTOFF = 0.01;
-const MAX_DEPTH = 12;
 
 function isTag(renderer: GraphRenderer, id: string): boolean {
 	return renderer.nodeLookup[id]?.type === 'tag';
@@ -61,13 +60,23 @@ function hopDistances(
 }
 
 /**
- * Each open tab contributes weight × fadePerHop^hops to every node it can reach.
+ * Brightness a note gets from one open note `hops` links away: full at the open note,
+ * falling in even steps to the minimum at maxHops, and nothing beyond that.
+ */
+export function hopBrightness(hops: number, maxHops: number, minBrightness: number): number {
+	if (hops > maxHops) return 0;
+	if (maxHops <= 0) return 1;
+	return 1 - ((1 - minBrightness) * hops) / maxHops;
+}
+
+/**
+ * Each open tab contributes weight × hopBrightness to every node within maxHops.
  * Contributions combine like independent lights: 1 − Π(1 − c), so a note reached
  * by several open tabs is brighter than one reached by only one of them.
  */
 export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: OpacityOptions): GraphState {
-	const fade = Math.min(Math.max(opts.fadePerHop, 0), 0.95);
-	const maxDepth = fade <= 0 ? 0 : Math.min(MAX_DEPTH, Math.ceil(Math.log(CUTOFF) / Math.log(fade)));
+	const maxHops = Math.max(0, Math.round(opts.maxHops));
+	const minBrightness = Math.min(Math.max(opts.minConnectedBrightness, 0), 1);
 
 	const darkness = new Map<string, number>(); // Π(1 − c)
 	const tabRoles = new Map<string, TabRole>();
@@ -76,9 +85,9 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 		if (!renderer.nodeLookup[seed.path]) continue;
 		if (tabRoles.get(seed.path) !== 'active') tabRoles.set(seed.path, seed.role);
 
-		for (const [id, hops] of hopDistances(renderer, seed.path, maxDepth, seed.includeTags)) {
-			const c = seed.weight * Math.pow(fade, hops);
-			if (c < CUTOFF) continue;
+		for (const [id, hops] of hopDistances(renderer, seed.path, maxHops, seed.includeTags)) {
+			const c = seed.weight * hopBrightness(hops, maxHops, minBrightness);
+			if (c <= 0) continue;
 			darkness.set(id, (darkness.get(id) ?? 1) * (1 - c));
 		}
 	}
@@ -109,8 +118,7 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 	return { alpha, roles, connectedTo, labelled, minOpacity: opts.minOpacity };
 }
 
-/** Final opacity for a node: the computed light, floored at the minimum. */
+/** Final opacity for a node: its brightness, never below the minimum opacity. */
 export function nodeOpacity(state: GraphState, id: string): number {
-	const light = state.alpha.get(id) ?? 0;
-	return state.minOpacity + (1 - state.minOpacity) * light;
+	return Math.max(state.minOpacity, state.alpha.get(id) ?? 0);
 }

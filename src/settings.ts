@@ -4,10 +4,11 @@ import type { OpenScope } from './tabs';
 import type { NodeRole } from './types';
 
 export interface GraphNoteHighlightingSettings {
-	enabled: boolean;
 	applyToGlobalGraph: boolean;
 	applyToLocalGraph: boolean;
+	includeTags: boolean;
 
+	highlightActive: boolean;
 	recolorActive: boolean;
 	activeColor: string;
 	activeSize: number;
@@ -15,7 +16,6 @@ export interface GraphNoteHighlightingSettings {
 	activeRingColor: string;
 	activeRingWidth: number;
 	activeRingGap: number;
-	activeIncludeTags: boolean;
 
 	highlightConnected: boolean;
 	connectedShowNames: boolean;
@@ -37,20 +37,21 @@ export interface GraphNoteHighlightingSettings {
 	openWeight: number;
 	openScope: OpenScope;
 	includeSidebars: boolean;
-	openIncludeTags: boolean;
 	openShowNames: boolean;
 
-	fadePerHop: number;
+	maxHops: number;
+	minConnectedBrightness: number;
 	minOpacity: number;
 	dimLabels: boolean;
 	dimLinks: boolean;
 }
 
 export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
-	enabled: true,
 	applyToGlobalGraph: true,
 	applyToLocalGraph: true,
+	includeTags: true,
 
+	highlightActive: true,
 	recolorActive: false,
 	activeColor: '#ffffff',
 	activeSize: 1,
@@ -58,7 +59,6 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeRingColor: '#ffffff',
 	activeRingWidth: 2,
 	activeRingGap: 3,
-	activeIncludeTags: true,
 
 	highlightConnected: false,
 	connectedShowNames: true,
@@ -80,10 +80,10 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	openWeight: 0.8,
 	openScope: 'split',
 	includeSidebars: true,
-	openIncludeTags: true,
 	openShowNames: false,
 
-	fadePerHop: 0.5,
+	maxHops: 3,
+	minConnectedBrightness: 0.25,
 	minOpacity: 0.1,
 	dimLabels: true,
 	dimLinks: true,
@@ -137,6 +137,17 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		if (redraw) this.display();
 	}
 
+	private stepEl: HTMLElement | null = null;
+
+	/** Show how much brightness each hop removes, and the brightness at each hop. */
+	private updateStep() {
+		if (!this.stepEl) return;
+		const { maxHops, minConnectedBrightness: min } = this.plugin.settings;
+		const step = (1 - min) / Math.max(1, maxHops);
+		const levels = Array.from({ length: maxHops + 1 }, (_, h) => (1 - step * h).toFixed(2).replace(/\.?0+$/, ''));
+		this.stepEl.setText(`Each hop removes ${step.toFixed(2)} brightness: ${levels.join(' → ')}.`);
+	}
+
 	private slider(
 		el: HTMLElement,
 		name: string,
@@ -145,6 +156,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		min: number,
 		max: number,
 		step: number,
+		after?: () => void,
 	) {
 		new Setting(el)
 			.setName(name)
@@ -153,7 +165,10 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 				s
 					.setLimits(min, max, step)
 					.setValue(this.plugin.settings[key])
-					.onChange(async (v) => this.set(key, v)),
+					.onChange(async (v) => {
+						await this.set(key, v);
+						after?.();
+					}),
 			);
 	}
 
@@ -215,17 +230,28 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		const el = this.containerEl;
 		el.empty();
 
-		this.toggle(el, 'Enabled', 'Turn graph highlighting on or off.', 'enabled');
 		this.toggle(el, 'Global graph', 'Apply to the global graph view.', 'applyToGlobalGraph');
 		this.toggle(el, 'Local graph', 'Apply to local graph views.', 'applyToLocalGraph');
-
-		this.roleSection(el, 'active', 'Active note', 'the note you are editing');
 		this.toggle(
 			el,
 			'Include tags',
-			'When the graph shows tags, light up tags on the active note and the notes that share them. Off leaves tags faded.',
-			'activeIncludeTags',
+			'When the graph shows tags, light up tags on the active and open notes, and the notes that share them. Off leaves tags faded.',
+			'includeTags',
 		);
+
+		new Setting(el).setName('Active note').setHeading();
+		new Setting(el)
+			.setName('Highlight active note')
+			.setDesc(
+				'Style the note you are editing and light up the notes around it. Off treats it like any other open note, and connected notes are not highlighted.',
+			)
+			.addToggle((t) =>
+				// Redraw so the active-note settings below follow the toggle.
+				t.setValue(this.plugin.settings.highlightActive).onChange(async (v) => this.set('highlightActive', v, true)),
+			);
+		if (this.plugin.settings.highlightActive) {
+			this.roleRows(el, 'active', 'the note you are editing');
+		}
 
 		new Setting(el).setName('Connected notes').setHeading();
 		new Setting(el)
@@ -238,13 +264,13 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 					.onChange(async (v) => this.set('highlightConnected', v, true)),
 			);
 		if (this.plugin.settings.highlightConnected) {
+			this.roleRows(el, 'connected', 'notes linked to the active note');
 			this.toggle(
 				el,
-				'Display node names',
+				'Always display node names',
 				'Show the names of notes linked to the active note at every zoom level.',
 				'connectedShowNames',
 			);
-			this.roleRows(el, 'connected', 'notes linked to the active note');
 		}
 
 		this.roleSection(el, 'open', 'Open notes', 'open notes');
@@ -275,24 +301,31 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'Count notes in the sidebars as open notes. With tabs in the active split, the sidebar must be expanded.',
 			'includeSidebars',
 		);
-		this.toggle(
-			el,
-			'Include tags',
-			'When the graph shows tags, light up tags on open notes and the notes that share them. Off leaves tags faded.',
-			'openIncludeTags',
-		);
-		this.toggle(el, 'Display node names', 'Show the names of open notes at every zoom level.', 'openShowNames');
+		this.toggle(el, 'Always display node names', 'Show the names of open notes at every zoom level.', 'openShowNames');
 
 		new Setting(el).setName('Fading').setHeading();
 		this.slider(
 			el,
-			'Brightness kept per hop',
-			'Each link away from an open note multiplies its brightness by this.',
-			'fadePerHop',
-			0,
-			0.9,
-			0.05,
+			'Maximum hops',
+			'How many links away from an open note are lit up. Notes further away drop to the minimum opacity.',
+			'maxHops',
+			1,
+			10,
+			1,
+			() => this.updateStep(),
 		);
+		this.slider(
+			el,
+			'Minimum brightness for connected notes',
+			'Brightness of notes at the last lit hop. Brightness falls in even steps from the open note down to this.',
+			'minConnectedBrightness',
+			0,
+			1,
+			0.05,
+			() => this.updateStep(),
+		);
+		this.stepEl = new Setting(el).setName('Step per hop').descEl;
+		this.updateStep();
 		this.slider(
 			el,
 			'Minimum opacity',

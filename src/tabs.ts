@@ -12,9 +12,11 @@ export const GRAPH_VIEW_TYPES = ['graph', 'localgraph'];
 export type OpenScope = 'split' | 'all';
 
 export interface TabOptions {
+	/** Off: the active note gets no special treatment and counts as an open note. */
+	highlightActive: boolean;
 	openWeight: number;
-	activeIncludeTags: boolean;
-	openIncludeTags: boolean;
+	/** Whether highlighting travels through tag nodes (when the graph shows tags). */
+	includeTags: boolean;
 	includeSidebars: boolean;
 	scope: OpenScope;
 }
@@ -104,7 +106,13 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 	const seeds: Seed[] = [];
 	const active = activeLeaf(app, lastFileLeaf);
 	const activePath = active ? leafFilePath(app, active) : null;
-	if (activePath) seeds.push({ path: activePath, role: 'active', weight: 1, includeTags: opts.activeIncludeTags });
+	if (activePath) {
+		seeds.push(
+			opts.highlightActive
+				? { path: activePath, role: 'active', weight: 1, includeTags: opts.includeTags }
+				: { path: activePath, role: 'open', weight: opts.openWeight, includeTags: opts.includeTags },
+		);
+	}
 
 	const seen = new Set(seeds.map((s) => s.path));
 	app.workspace.iterateAllLeaves((leaf) => {
@@ -112,7 +120,7 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 		if (!path || seen.has(path)) return;
 		if (!counts(app, leaf, active, opts)) return;
 		seen.add(path);
-		seeds.push({ path, role: 'open', weight: opts.openWeight, includeTags: opts.openIncludeTags });
+		seeds.push({ path, role: 'open', weight: opts.openWeight, includeTags: opts.includeTags });
 	});
 	return seeds;
 }
