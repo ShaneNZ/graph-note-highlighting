@@ -5,10 +5,11 @@ An Obsidian plugin that shows your open notes on the graph view, and fades the r
 ## What it does
 
 - **Active note** — the note you're editing is recoloured (or keeps its colour group colour), enlarged, and ringed. It stays highlighted when you click into the graph itself.
-- **Open notes** — notes showing in other panes (selected tabs in other splits, popout windows, and optionally the sidebars) get their own colour, size and ring. A setting can also count background tabs as open notes: either those in the active note's split, or all of them.
+- **Open notes** — notes showing in other panes (selected tabs in other splits, popout windows, and optionally the sidebars) get their own colour, size and ring. Background tabs count too: either those in the active note's split (the default), or all of them.
 - **Fade by distance** — every open note lights up the notes around it, losing brightness with each link. Light from several open notes adds up, so a note linked to two open notes is brighter than one linked to only one of them. Every note keeps a minimum opacity, so the whole graph stays faintly visible.
 - Distance is measured over the links the graph is actually drawing, so graph filters apply and unlinked mentions are ignored.
 - With no notes open, the graph is drawn exactly as Obsidian draws it.
+- **Click to switch** — clicking a note in the graph that is already open in a tab switches to that tab instead of opening the note again. Modifier clicks (such as Cmd-click to open in a new tab) and tag clicks work as normal.
 - Works in the global graph and in local graphs.
 
 Notes that aren't open keep their colour-group colour; only their opacity changes.
