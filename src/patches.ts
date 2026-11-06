@@ -22,6 +22,32 @@ export interface RingStyle {
 type AnyFn = (...args: unknown[]) => unknown;
 
 /**
+ * Make a link run between ring edges instead of dot edges. Obsidian has already
+ * placed the line from the edge of one dot to the edge of the other; move whichever
+ * end has a ring (null radius = leave that end on the dot).
+ */
+function trimToRings(link: GraphLink, sourceRadius: number | null, targetRadius: number | null): void {
+	if (sourceRadius === null && targetRadius === null) return;
+	const { source, target, line, arrow, px } = link;
+	const dx = target.x - source.x;
+	const dy = target.y - source.y;
+	const length = Math.sqrt(dx * dx + dy * dy);
+	if (!length) return;
+	const scale = link.renderer.nodeScale;
+	const from = sourceRadius ?? source.getSize() * scale;
+	const to = targetRadius ?? target.getSize() * scale;
+	if (line?.visible && px) {
+		px.x = source.x + (dx * from) / length;
+		px.y = source.y + (dy * from) / length;
+		line.width = Math.max(0, length - from - to);
+	}
+	if (arrow?.visible && targetRadius !== null) {
+		arrow.x = target.x - (dx * (to + 1)) / length;
+		arrow.y = target.y - (dy * (to + 1)) / length;
+	}
+}
+
+/**
  * Show a node's name whatever the zoom level. Obsidian hides names when zoomed out;
  * this places the label the way Obsidian places a hovered node's label, at a
  * readable size, still fading with the node when another note is hovered.
@@ -82,7 +108,31 @@ export class GraphPatcher {
 			updateRing: (n: GraphNode, st: GraphState | undefined) => this.updateRing(n, st),
 			removeRing: (n: GraphNode) => this.removeRing(n),
 			pruneRings: () => this.pruneRings(),
+			linkRadius: (n: GraphNode, st: GraphState | undefined) => this.linkRadius(n, st),
 		};
+	}
+
+	/** The ring style for a node, or null if it has none. */
+	private ringStyle(node: GraphNode, state: GraphState | undefined): RingStyle | null {
+		const role = state?.roles.get(node.id);
+		return role ? this.getStyle().ring[role] : null;
+	}
+
+	/** One screen pixel in node-local units, never thinner than Obsidian's own ring. */
+	private onePixel(node: GraphNode): number {
+		const r = node.renderer;
+		return Math.max(1, 1 / r.scale / r.nodeScale);
+	}
+
+	/**
+	 * How far from a node's centre its links should start, in graph units: the outer
+	 * edge of its ring if it has one, otherwise null (Obsidian's own edge of the dot).
+	 */
+	private linkRadius(node: GraphNode, state: GraphState | undefined): number | null {
+		const style = this.ringStyle(node, state);
+		if (!style) return null;
+		const px = this.onePixel(node);
+		return (node.getSize() + style.gap * px + style.width * px) * node.renderer.nodeScale;
 	}
 
 	/**
@@ -90,8 +140,7 @@ export class GraphPatcher {
 	 * its hover ring: a PIXI.Graphics on the renderer's hanger, scaled with the nodes.
 	 */
 	private updateRing(node: GraphNode, state: GraphState | undefined): void {
-		const role = state?.roles.get(node.id);
-		const style = role ? this.getStyle().ring[role] : null;
+		const style = this.ringStyle(node, state);
 		if (!style || !node.circle) {
 			this.removeRing(node);
 			return;
@@ -111,8 +160,7 @@ export class GraphPatcher {
 		const r = node.renderer;
 		ring.visible = node.circle.visible;
 		if (!ring.visible) return;
-		// One screen pixel in node-local units, never thinner than Obsidian's own ring.
-		const px = Math.max(1, 1 / r.scale / r.nodeScale);
+		const px = this.onePixel(node);
 		const width = style.width * px;
 		ring.x = node.x;
 		ring.y = node.y;
@@ -239,6 +287,7 @@ export class GraphPatcher {
 
 				const state = self.states.get(this.renderer);
 				if (!state || !this.line) return result;
+				trimToRings(this, self.linkRadius(this.source, state), self.linkRadius(this.target, state));
 				const style = self.getStyle();
 				const saved: { line: number; arrow: number; tint?: number } = {
 					line: this.line.alpha,

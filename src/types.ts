@@ -48,12 +48,21 @@ export interface GraphNode {
 	render(): void;
 }
 
+/** A PIXI display object that can be placed and sized. */
+export interface PixiSprite extends PixiDisplay {
+	x: number;
+	y: number;
+	width: number;
+}
+
 export interface GraphLink {
 	source: GraphNode;
 	target: GraphNode;
 	renderer: GraphRenderer;
-	line?: PixiDisplay;
-	arrow?: PixiDisplay;
+	/** Container the line is drawn in, placed at the line's start and rotated along it. */
+	px?: { x: number; y: number };
+	line?: PixiSprite;
+	arrow?: PixiSprite;
 	render(): void;
 }
 
