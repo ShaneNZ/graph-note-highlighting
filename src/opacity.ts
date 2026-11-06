@@ -15,8 +15,8 @@ export interface OpacityOptions {
 	minOpacity: number;
 	/** Highlight the notes linked to the active note. */
 	highlightConnected: boolean;
-	/** Always show the names of notes linked to the active note. */
-	activeShowNames: boolean;
+	/** Always show the names of notes linked to the active note (only while they are highlighted). */
+	connectedShowNames: boolean;
 	/** Always show the names of open notes. */
 	openShowNames: boolean;
 }
@@ -97,7 +97,7 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 		for (const id of [...Object.keys(node.forward), ...Object.keys(node.reverse)]) {
 			if (id === active.path || !renderer.nodeLookup[id]) continue;
 			if (!active.includeTags && isTag(renderer, id)) continue;
-			if (opts.activeShowNames) labelled.add(id);
+			if (connectedTo && opts.connectedShowNames) labelled.add(id);
 			if (connectedTo && !roles.has(id)) roles.set(id, 'connected');
 		}
 	}

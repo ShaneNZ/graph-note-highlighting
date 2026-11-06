@@ -27,6 +27,33 @@ function migrateVisibleKeys(data: Record<string, unknown>): boolean {
 	return changed;
 }
 
+/**
+ * Before 0.5.0, connected notes borrowed the active note's colour and ring, and
+ * their names setting was called activeShowNames. Give them their own settings,
+ * starting from what they looked like before. Returns true if anything changed.
+ */
+function migrateConnectedKeys(data: Record<string, unknown>): boolean {
+	let changed = false;
+	if ('activeShowNames' in data) {
+		if (!('connectedShowNames' in data)) data.connectedShowNames = data.activeShowNames;
+		delete data.activeShowNames;
+		changed = true;
+	}
+	if ('highlightConnected' in data && !('connectedRing' in data)) {
+		const copy: [string, string][] = [
+			['recolorActive', 'recolorConnected'],
+			['activeColor', 'connectedColor'],
+			['activeRing', 'connectedRing'],
+			['activeRingColor', 'connectedRingColor'],
+			['activeRingWidth', 'connectedRingWidth'],
+			['activeRingGap', 'connectedRingGap'],
+		];
+		for (const [from, to] of copy) if (from in data) data[to] = data[from];
+		changed = true;
+	}
+	return changed;
+}
+
 export default class GraphNoteHighlightingPlugin extends Plugin {
 	settings: GraphNoteHighlightingSettings = { ...DEFAULT_SETTINGS };
 	private patcher!: GraphPatcher;
@@ -83,6 +110,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			data.openScope = 'split';
 			migrated = true;
 		}
+		if (migrateConnectedKeys(data)) migrated = true;
 		this.settings = { ...DEFAULT_SETTINGS, ...(data as Partial<GraphNoteHighlightingSettings>) };
 		if (migrated) await this.saveData(this.settings);
 		this.updateStyle();
@@ -96,24 +124,23 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 
 	private updateStyle() {
 		const s = this.settings;
-		const activeRecolor = s.recolorActive ? hexToRgb(s.activeColor) : null;
-		const activeRing = s.activeRing
-			? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
-			: null;
 		this.style = {
-			// Connected notes borrow the active note's colour and ring, at normal size.
 			recolor: {
-				active: activeRecolor,
+				active: s.recolorActive ? hexToRgb(s.activeColor) : null,
 				open: s.recolorOpen ? hexToRgb(s.openColor) : null,
-				connected: activeRecolor,
+				connected: s.recolorConnected ? hexToRgb(s.connectedColor) : null,
 			},
-			size: { active: s.activeSize, open: s.openSize, connected: 1 },
+			size: { active: s.activeSize, open: s.openSize, connected: s.connectedSize },
 			ring: {
-				active: activeRing,
+				active: s.activeRing
+					? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
+					: null,
 				open: s.openRing
 					? { rgb: hexToRgb(s.openRingColor), width: s.openRingWidth, gap: s.openRingGap }
 					: null,
-				connected: activeRing,
+				connected: s.connectedRing
+					? { rgb: hexToRgb(s.connectedRingColor), width: s.connectedRingWidth, gap: s.connectedRingGap }
+					: null,
 			},
 			connectedLink: hexToRgb(s.activeRingColor),
 			dimLabels: s.dimLabels,
@@ -177,7 +204,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 					fadePerHop: this.settings.fadePerHop,
 					minOpacity: this.settings.minOpacity,
 					highlightConnected: this.settings.highlightConnected,
-					activeShowNames: this.settings.activeShowNames,
+					connectedShowNames: this.settings.connectedShowNames,
 					openShowNames: this.settings.openShowNames,
 				}),
 			);

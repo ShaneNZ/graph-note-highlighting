@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type GraphNoteHighlightingPlugin from './main';
 import type { OpenScope } from './tabs';
-import type { TabRole } from './types';
+import type { NodeRole } from './types';
 
 export interface GraphNoteHighlightingSettings {
 	enabled: boolean;
@@ -15,9 +15,17 @@ export interface GraphNoteHighlightingSettings {
 	activeRingColor: string;
 	activeRingWidth: number;
 	activeRingGap: number;
-	highlightConnected: boolean;
 	activeIncludeTags: boolean;
-	activeShowNames: boolean;
+
+	highlightConnected: boolean;
+	connectedShowNames: boolean;
+	recolorConnected: boolean;
+	connectedColor: string;
+	connectedSize: number;
+	connectedRing: boolean;
+	connectedRingColor: string;
+	connectedRingWidth: number;
+	connectedRingGap: number;
 
 	recolorOpen: boolean;
 	openColor: string;
@@ -50,9 +58,17 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeRingColor: '#ffffff',
 	activeRingWidth: 2,
 	activeRingGap: 3,
-	highlightConnected: false,
 	activeIncludeTags: true,
-	activeShowNames: true,
+
+	highlightConnected: false,
+	connectedShowNames: true,
+	recolorConnected: false,
+	connectedColor: '#ffffff',
+	connectedSize: 1,
+	connectedRing: true,
+	connectedRingColor: '#ffffff',
+	connectedRingWidth: 1,
+	connectedRingGap: 2,
 
 	recolorOpen: true,
 	openColor: '#ffffff',
@@ -76,7 +92,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 type Settings = GraphNoteHighlightingSettings;
 type KeysOfType<T> = { [K in keyof Settings]: Settings[K] extends T ? K : never }[keyof Settings];
 
-/** Settings keys for the per-role options, so active and open share one builder. */
+/** Settings keys for the per-role options, so active, connected and open notes share one builder. */
 const ROLE_KEYS = {
 	active: {
 		recolor: 'recolorActive',
@@ -87,6 +103,15 @@ const ROLE_KEYS = {
 		ringWidth: 'activeRingWidth',
 		ringGap: 'activeRingGap',
 	},
+	connected: {
+		recolor: 'recolorConnected',
+		color: 'connectedColor',
+		size: 'connectedSize',
+		ring: 'connectedRing',
+		ringColor: 'connectedRingColor',
+		ringWidth: 'connectedRingWidth',
+		ringGap: 'connectedRingGap',
+	},
 	open: {
 		recolor: 'recolorOpen',
 		color: 'openColor',
@@ -96,7 +121,7 @@ const ROLE_KEYS = {
 		ringWidth: 'openRingWidth',
 		ringGap: 'openRingGap',
 	},
-} as const satisfies Record<TabRole, Record<string, keyof Settings>>;
+} as const satisfies Record<NodeRole, Record<string, keyof Settings>>;
 
 export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 	constructor(
@@ -163,9 +188,14 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			);
 	}
 
-	private roleSection(el: HTMLElement, role: TabRole, heading: string, noteDesc: string) {
-		const k = ROLE_KEYS[role];
+	private roleSection(el: HTMLElement, role: NodeRole, heading: string, noteDesc: string) {
 		new Setting(el).setName(heading).setHeading();
+		this.roleRows(el, role, noteDesc);
+	}
+
+	/** Colour, size and ring rows for one kind of highlighted note. */
+	private roleRows(el: HTMLElement, role: NodeRole, noteDesc: string) {
+		const k = ROLE_KEYS[role];
 		this.toggledColor(
 			el,
 			'Colour',
@@ -192,22 +222,30 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		this.roleSection(el, 'active', 'Active note', 'the note you are editing');
 		this.toggle(
 			el,
-			'Highlight connected notes',
-			"Give notes linked to the active note the active note's colour and ring, and draw their links in the ring colour.",
-			'highlightConnected',
-		);
-		this.toggle(
-			el,
 			'Include tags',
 			'When the graph shows tags, light up tags on the active note and the notes that share them. Off leaves tags faded.',
 			'activeIncludeTags',
 		);
-		this.toggle(
-			el,
-			'Display node names',
-			'Show the names of notes linked to the active note at every zoom level.',
-			'activeShowNames',
-		);
+
+		new Setting(el).setName('Connected notes').setHeading();
+		new Setting(el)
+			.setName('Highlight connected notes')
+			.setDesc("Style the notes linked to the active note, and draw their links in the active note's ring colour.")
+			.addToggle((t) =>
+				// Redraw so the connected-note settings below follow the toggle.
+				t
+					.setValue(this.plugin.settings.highlightConnected)
+					.onChange(async (v) => this.set('highlightConnected', v, true)),
+			);
+		if (this.plugin.settings.highlightConnected) {
+			this.toggle(
+				el,
+				'Display node names',
+				'Show the names of notes linked to the active note at every zoom level.',
+				'connectedShowNames',
+			);
+			this.roleRows(el, 'connected', 'notes linked to the active note');
+		}
 
 		this.roleSection(el, 'open', 'Open notes', 'open notes');
 		new Setting(el)

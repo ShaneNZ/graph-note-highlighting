@@ -21,8 +21,10 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 | Active note colour (or keep its colour group colour) / size | kept, 1× |
 | Active note ring: colour / width / gap | white, 2 px, 3 px |
 | Active note: include tags (when the graph shows tags, light up its tags and the notes that share them) | on |
-| Active note: display node names (names of notes linked to the active note show at every zoom level) | on |
-| Highlight connected notes: notes linked to the active note get its colour and ring, and their links are drawn in the ring colour | off |
+| Highlight connected notes: style the notes linked to the active note, and draw their links in the active note's ring colour | off |
+| Connected notes (while highlighted): display node names at every zoom level | on |
+| Connected note colour (or keep its colour group colour) / size | kept, 1× |
+| Connected note ring: colour / width / gap | white, 1 px, 2 px |
 | Open note colour (or keep its colour group colour) / size | white, 1× |
 | Open note ring: colour / width / gap | off (white, 1 px, 2 px) |
 | Open note reach (relative to the active note) | 0.8 |
