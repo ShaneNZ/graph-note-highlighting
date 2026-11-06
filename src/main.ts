@@ -88,20 +88,26 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 
 	private updateStyle() {
 		const s = this.settings;
+		const activeRecolor = s.recolorActive ? hexToRgb(s.activeColor) : null;
+		const activeRing = s.activeRing
+			? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
+			: null;
 		this.style = {
+			// Connected notes borrow the active note's colour and ring, at normal size.
 			recolor: {
-				active: s.recolorActive ? hexToRgb(s.activeColor) : null,
+				active: activeRecolor,
 				open: s.recolorOpen ? hexToRgb(s.openColor) : null,
+				connected: activeRecolor,
 			},
-			size: { active: s.activeSize, open: s.openSize },
+			size: { active: s.activeSize, open: s.openSize, connected: 1 },
 			ring: {
-				active: s.activeRing
-					? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
-					: null,
+				active: activeRing,
 				open: s.openRing
 					? { rgb: hexToRgb(s.openRingColor), width: s.openRingWidth, gap: s.openRingGap }
 					: null,
+				connected: activeRing,
 			},
+			connectedLink: hexToRgb(s.activeRingColor),
 			dimLabels: s.dimLabels,
 			dimLinks: s.dimLinks,
 		};
@@ -159,6 +165,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 				computeState(renderer, seeds, {
 					fadePerHop: this.settings.fadePerHop,
 					minOpacity: this.settings.minOpacity,
+					highlightConnected: this.settings.highlightConnected,
 				}),
 			);
 		} else {

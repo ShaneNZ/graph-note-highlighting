@@ -1,4 +1,4 @@
-import type { GraphRenderer, GraphState, TabRole } from './types';
+import type { GraphRenderer, GraphState, NodeRole, TabRole } from './types';
 
 export interface Seed {
 	path: string;
@@ -11,6 +11,8 @@ export interface OpacityOptions {
 	/** Fraction of brightness kept per hop, 0..1. */
 	fadePerHop: number;
 	minOpacity: number;
+	/** Highlight the notes linked to the active note. */
+	highlightConnected: boolean;
 }
 
 /** Contributions smaller than this are treated as zero, which bounds the search depth. */
@@ -51,11 +53,11 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 	const maxDepth = fade <= 0 ? 0 : Math.min(MAX_DEPTH, Math.ceil(Math.log(CUTOFF) / Math.log(fade)));
 
 	const darkness = new Map<string, number>(); // Π(1 − c)
-	const roles = new Map<string, TabRole>();
+	const tabRoles = new Map<string, TabRole>();
 
 	for (const seed of seeds) {
 		if (!renderer.nodeLookup[seed.path]) continue;
-		if (roles.get(seed.path) !== 'active') roles.set(seed.path, seed.role);
+		if (tabRoles.get(seed.path) !== 'active') tabRoles.set(seed.path, seed.role);
 
 		for (const [id, hops] of hopDistances(renderer, seed.path, maxDepth)) {
 			const c = seed.weight * Math.pow(fade, hops);
@@ -64,11 +66,22 @@ export function computeState(renderer: GraphRenderer, seeds: Seed[], opts: Opaci
 		}
 	}
 
+	// Notes one link from the active note, unless they are open in a tab themselves.
+	const roles: Map<string, NodeRole> = tabRoles;
+	const active = seeds.find((s) => s.role === 'active' && renderer.nodeLookup[s.path]);
+	const connectedTo = opts.highlightConnected && active ? active.path : null;
+	if (connectedTo) {
+		const node = renderer.nodeLookup[connectedTo]!;
+		for (const id of [...Object.keys(node.forward), ...Object.keys(node.reverse)]) {
+			if (renderer.nodeLookup[id] && !roles.has(id)) roles.set(id, 'connected');
+		}
+	}
+
 	const alpha = new Map<string, number>();
 	for (const [id, dark] of darkness) alpha.set(id, 1 - dark);
-	for (const id of roles.keys()) alpha.set(id, 1); // open notes are always fully visible
+	for (const id of roles.keys()) alpha.set(id, 1); // highlighted notes are always fully visible
 
-	return { alpha, roles, minOpacity: opts.minOpacity };
+	return { alpha, roles, connectedTo, minOpacity: opts.minOpacity };
 }
 
 /** Final opacity for a node: the computed light, floored at the minimum. */

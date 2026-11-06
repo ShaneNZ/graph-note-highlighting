@@ -1,10 +1,12 @@
 import { nodeOpacity } from './opacity';
-import type { GraphLink, GraphNode, GraphRenderer, GraphState, PixiGraphics, TabRole } from './types';
+import type { GraphLink, GraphNode, GraphRenderer, GraphState, NodeRole, PixiGraphics } from './types';
 
 export interface StyleOptions {
-	recolor: Record<TabRole, number | null>; // rgb, or null to keep the group colour
-	size: Record<TabRole, number>;
-	ring: Record<TabRole, RingStyle | null>; // null for no ring
+	recolor: Record<NodeRole, number | null>; // rgb, or null to keep the group colour
+	size: Record<NodeRole, number>;
+	ring: Record<NodeRole, RingStyle | null>; // null for no ring
+	/** Colour for links to the active note when connected notes are highlighted. */
+	connectedLink: number;
 	dimLabels: boolean;
 	dimLinks: boolean;
 }
@@ -28,7 +30,7 @@ export class GraphPatcher {
 	readonly states = new WeakMap<GraphRenderer, GraphState>();
 	private restores: (() => void)[] = [];
 	private patchedProtos = new Set<object>();
-	private linkBase = new WeakMap<GraphLink, { line: number; arrow: number }>();
+	private linkBase = new WeakMap<GraphLink, { line: number; arrow: number; tint?: number }>();
 	private rings = new Map<GraphNode, PixiGraphics>();
 
 	constructor(
@@ -205,21 +207,46 @@ export class GraphPatcher {
 			function (this: GraphLink, ...args: unknown[]) {
 				// Obsidian eases line alpha from its previous value each frame, so hand it back
 				// the undimmed value before rendering, then dim the result.
+				// Line colour is eased the same way, so restore its tint too.
 				const base = self.linkBase.get(this);
 				if (base) {
-					if (this.line) this.line.alpha = base.line;
+					if (this.line) {
+						this.line.alpha = base.line;
+						if (base.tint !== undefined) this.line.tint = base.tint;
+					}
 					if (this.arrow) this.arrow.alpha = base.arrow;
 					self.linkBase.delete(this);
 				}
 				const result = orig.apply(this, args);
 
 				const state = self.states.get(this.renderer);
-				if (state && self.getStyle().dimLinks && this.line) {
-					self.linkBase.set(this, { line: this.line.alpha, arrow: this.arrow?.alpha ?? 0 });
+				if (!state || !this.line) return result;
+				const style = self.getStyle();
+				const saved: { line: number; arrow: number; tint?: number } = {
+					line: this.line.alpha,
+					arrow: this.arrow?.alpha ?? 0,
+				};
+				let changed = false;
+
+				if (style.dimLinks) {
 					const factor = Math.min(nodeOpacity(state, this.source.id), nodeOpacity(state, this.target.id));
 					this.line.alpha *= factor;
 					if (this.arrow) this.arrow.alpha *= factor;
+					changed = true;
 				}
+
+				// Colour links to the active note, except while the mouse is over one of their ends,
+				// when Obsidian's own hover highlight takes over.
+				const hovered = this.renderer.getHighlightNode?.() ?? null;
+				const touchesActive = state.connectedTo === this.source.id || state.connectedTo === this.target.id;
+				if (touchesActive && hovered !== this.source && hovered !== this.target) {
+					saved.tint = this.line.tint;
+					this.line.tint = style.connectedLink;
+					if (this.arrow) this.arrow.tint = style.connectedLink;
+					changed = true;
+				}
+
+				if (changed) self.linkBase.set(this, saved);
 				return result;
 			},
 		);

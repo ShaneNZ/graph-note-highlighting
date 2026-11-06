@@ -19,6 +19,7 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 |---|---|
 | Active note colour (or keep its colour group colour) / size | kept, 1× |
 | Active note ring: colour / width / gap | white, 2 px, 3 px |
+| Highlight connected notes: notes linked to the active note get its colour and ring, and their links are drawn in the ring colour | off |
 | Open note colour (or keep its colour group colour) / size | white, 1× |
 | Open note ring: colour / width / gap | off (white, 1 px, 2 px) |
 | Open note reach (relative to the active note) | 0.8 |

@@ -9,6 +9,7 @@ export interface GraphColor {
 export interface PixiDisplay {
 	alpha: number;
 	visible: boolean;
+	tint?: number;
 }
 
 /** The subset of PIXI.Graphics used to draw rings. */
@@ -64,15 +65,22 @@ export interface GraphRenderer {
 	nodeScale: number;
 	setData(data: unknown): void;
 	changed(): void;
+	/** The node under the mouse, whose links Obsidian highlights. */
+	getHighlightNode?(): GraphNode | null;
 }
 
 export type TabRole = 'active' | 'open';
+
+/** How a node is highlighted: open in a tab, or linked to the active note. */
+export type NodeRole = TabRole | 'connected';
 
 /** Per-renderer computed styling, looked up from the patched prototype methods. */
 export interface GraphState {
 	/** Opacity factor 0..1 for every node id reachable from a seed; others use the minimum. */
 	alpha: Map<string, number>;
-	/** Nodes that are open in a tab. */
-	roles: Map<string, TabRole>;
+	/** Nodes that are open in a tab, or linked to the active note. */
+	roles: Map<string, NodeRole>;
+	/** The active note's id when its links are highlighted, otherwise null. */
+	connectedTo: string | null;
 	minOpacity: number;
 }

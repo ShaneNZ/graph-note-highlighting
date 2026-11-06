@@ -15,6 +15,7 @@ export interface GraphNoteHighlightingSettings {
 	activeRingColor: string;
 	activeRingWidth: number;
 	activeRingGap: number;
+	highlightConnected: boolean;
 
 	recolorOpen: boolean;
 	openColor: string;
@@ -45,6 +46,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeRingColor: '#ffffff',
 	activeRingWidth: 2,
 	activeRingGap: 3,
+	highlightConnected: false,
 
 	recolorOpen: true,
 	openColor: '#ffffff',
@@ -180,6 +182,12 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		this.toggle(el, 'Local graph', 'Apply to local graph views.', 'applyToLocalGraph');
 
 		this.roleSection(el, 'active', 'Active note', 'the note you are editing');
+		this.toggle(
+			el,
+			'Highlight connected notes',
+			"Give notes linked to the active note the active note's colour and ring, and draw their links in the ring colour.",
+			'highlightConnected',
+		);
 
 		this.roleSection(el, 'open', 'Open notes', 'open notes');
 		new Setting(el)
