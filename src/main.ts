@@ -142,16 +142,15 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			size: { active: s.activeSize, open: s.openSize, connected: s.connectedSize },
 			ring: {
 				active: s.activeRing
-					? { rgb: hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
+					? { rgb: s.activeRingMatch ? null : hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
 					: null,
 				open: s.openRing
-					? { rgb: hexToRgb(s.openRingColor), width: s.openRingWidth, gap: s.openRingGap }
+					? { rgb: s.openRingMatch ? null : hexToRgb(s.openRingColor), width: s.openRingWidth, gap: s.openRingGap }
 					: null,
 				connected: s.connectedRing
-					? { rgb: hexToRgb(s.connectedRingColor), width: s.connectedRingWidth, gap: s.connectedRingGap }
+					? { rgb: s.connectedRingMatch ? null : hexToRgb(s.connectedRingColor), width: s.connectedRingWidth, gap: s.connectedRingGap }
 					: null,
 			},
-			connectedLink: hexToRgb(s.activeRingColor),
 			dimLabels: s.dimLabels,
 			dimLinks: s.dimLinks,
 		};

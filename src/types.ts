@@ -61,6 +61,10 @@ export interface PixiSprite extends PixiDisplay {
 	x: number;
 	y: number;
 	width: number;
+	height: number;
+	eventMode: string;
+	parent: { removeChild(child: unknown): void } | null;
+	destroy(): void;
 }
 
 export interface GraphLink {
@@ -68,7 +72,7 @@ export interface GraphLink {
 	target: GraphNode;
 	renderer: GraphRenderer;
 	/** Container the line is drawn in, placed at the line's start and rotated along it. */
-	px?: { x: number; y: number; parent: PixiContainer | null };
+	px?: { x: number; y: number; parent: PixiContainer | null; addChild(child: unknown): void };
 	line?: PixiSprite;
 	arrow?: PixiSprite;
 	render(): void;

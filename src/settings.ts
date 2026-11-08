@@ -14,6 +14,7 @@ export interface GraphNoteHighlightingSettings {
 	activeSize: number;
 	activeRing: boolean;
 	activeRingColor: string;
+	activeRingMatch: boolean;
 	activeRingWidth: number;
 	activeRingGap: number;
 
@@ -24,6 +25,7 @@ export interface GraphNoteHighlightingSettings {
 	connectedSize: number;
 	connectedRing: boolean;
 	connectedRingColor: string;
+	connectedRingMatch: boolean;
 	connectedRingWidth: number;
 	connectedRingGap: number;
 
@@ -32,6 +34,7 @@ export interface GraphNoteHighlightingSettings {
 	openSize: number;
 	openRing: boolean;
 	openRingColor: string;
+	openRingMatch: boolean;
 	openRingWidth: number;
 	openRingGap: number;
 	openWeight: number;
@@ -57,6 +60,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	activeSize: 1,
 	activeRing: true,
 	activeRingColor: '#ffffff',
+	activeRingMatch: false,
 	activeRingWidth: 2,
 	activeRingGap: 3,
 
@@ -67,6 +71,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	connectedSize: 1,
 	connectedRing: true,
 	connectedRingColor: '#ffffff',
+	connectedRingMatch: false,
 	connectedRingWidth: 1,
 	connectedRingGap: 2,
 
@@ -75,6 +80,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	openSize: 1,
 	openRing: false,
 	openRingColor: '#ffffff',
+	openRingMatch: false,
 	openRingWidth: 1,
 	openRingGap: 2,
 	openWeight: 0.8,
@@ -100,6 +106,7 @@ const ROLE_KEYS = {
 		size: 'activeSize',
 		ring: 'activeRing',
 		ringColor: 'activeRingColor',
+		ringMatch: 'activeRingMatch',
 		ringWidth: 'activeRingWidth',
 		ringGap: 'activeRingGap',
 	},
@@ -109,6 +116,7 @@ const ROLE_KEYS = {
 		size: 'connectedSize',
 		ring: 'connectedRing',
 		ringColor: 'connectedRingColor',
+		ringMatch: 'connectedRingMatch',
 		ringWidth: 'connectedRingWidth',
 		ringGap: 'connectedRingGap',
 	},
@@ -118,6 +126,7 @@ const ROLE_KEYS = {
 		size: 'openSize',
 		ring: 'openRing',
 		ringColor: 'openRingColor',
+		ringMatch: 'openRingMatch',
 		ringWidth: 'openRingWidth',
 		ringGap: 'openRingGap',
 	},
@@ -179,13 +188,17 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			.addToggle((t) => t.setValue(this.plugin.settings[key]).onChange(async (v) => this.set(key, v)));
 	}
 
-	/** A toggle with a colour picker beside it; the picker is disabled while the toggle is off. */
+	/**
+	 * A toggle with a colour picker beside it; the picker is disabled while the toggle
+	 * is off, or while `pickerOff` is true.
+	 */
 	private toggledColor(
 		el: HTMLElement,
 		name: string,
 		desc: string,
 		toggleKey: KeysOfType<boolean>,
 		colorKey: KeysOfType<string>,
+		pickerOff = false,
 	) {
 		const s = this.plugin.settings;
 		new Setting(el)
@@ -194,7 +207,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			.addColorPicker((c) =>
 				c
 					.setValue(s[colorKey])
-					.setDisabled(!s[toggleKey])
+					.setDisabled(!s[toggleKey] || pickerOff)
 					.onChange(async (v) => this.set(colorKey, v)),
 			)
 			.addToggle((t) =>
@@ -219,8 +232,16 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			k.color,
 		);
 		this.slider(el, 'Size', 'Node size multiplier.', k.size, 1, 3, 0.1);
-		this.toggledColor(el, 'Ring', `Draw a ring around ${noteDesc}.`, k.ring, k.ringColor);
-		if (this.plugin.settings[k.ring]) {
+		const s = this.plugin.settings;
+		this.toggledColor(el, 'Ring', `Draw a ring around ${noteDesc}.`, k.ring, k.ringColor, s[k.ringMatch]);
+		if (s[k.ring]) {
+			new Setting(el)
+				.setName('Match note colour')
+				.setDesc("Colour the ring the same as the note's dot instead of the colour picked above.")
+				.addToggle((t) =>
+					// Redraw so the ring colour picker follows the toggle.
+					t.setValue(s[k.ringMatch]).onChange(async (v) => this.set(k.ringMatch, v, true)),
+				);
 			this.slider(el, 'Ring width', 'Thickness of the ring, in pixels.', k.ringWidth, 0.5, 8, 0.5);
 			this.slider(el, 'Ring gap', 'Space between the note and its ring, in pixels.', k.ringGap, 0, 10, 0.5);
 		}
@@ -256,7 +277,9 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		new Setting(el).setName('Connected notes').setHeading();
 		new Setting(el)
 			.setName('Highlight connected notes')
-			.setDesc("Style the notes linked to the active note, and draw their links in the active note's ring colour.")
+			.setDesc(
+				'Style the notes linked to the active note. Their links blend from the colour at one end to the other (the ring colour, or the dot colour where there is no ring).',
+			)
 			.addToggle((t) =>
 				// Redraw so the connected-note settings below follow the toggle.
 				t

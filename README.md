@@ -21,13 +21,13 @@ Notes that aren't open keep their colour-group colour; only their opacity change
 | Include tags: when the graph shows tags, light up tags on the active and open notes, and the notes that share them | on |
 | Highlight active note (off: the active note is treated as an open note) | on |
 | Active note colour (or keep its colour group colour) / size | kept, 1× |
-| Active note ring: colour / width / gap | white, 2 px, 3 px |
-| Highlight connected notes: style the notes linked to the active note, and draw their links in the active note's ring colour | off |
+| Active note ring: colour (or match the note colour) / width / gap | white, 2 px, 3 px |
+| Highlight connected notes: style the notes linked to the active note; their links blend from the colour at one end to the other (ring colour, or dot colour without a ring) | off |
 | Connected note colour (or keep its colour group colour) / size | kept, 1× |
-| Connected note ring: colour / width / gap | white, 1 px, 2 px |
+| Connected note ring: colour (or match the note colour) / width / gap | white, 1 px, 2 px |
 | Connected notes: always display node names (at every zoom level) | on |
 | Open note colour (or keep its colour group colour) / size | white, 1× |
-| Open note ring: colour / width / gap | off (white, 1 px, 2 px) |
+| Open note ring: colour (or match the note colour) / width / gap | off (white, 1 px, 2 px) |
 | Open note reach (relative to the active note) | 0.8 |
 | Count as open: tabs in the active split / all tabs (notes showing in other panes always count) | tabs in the active split |
 | Maximum hops: how many links away from an open note are lit up | 3 |

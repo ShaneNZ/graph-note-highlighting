@@ -1,18 +1,26 @@
 import { nodeOpacity } from './opacity';
-import type { GraphLink, GraphNode, GraphRenderer, GraphState, NodeRole, PixiContainer, PixiGraphics } from './types';
+import type {
+	GraphLink,
+	GraphNode,
+	GraphRenderer,
+	GraphState,
+	NodeRole,
+	PixiContainer,
+	PixiGraphics,
+	PixiSprite,
+} from './types';
 
 export interface StyleOptions {
 	recolor: Record<NodeRole, number | null>; // rgb, or null to keep the group colour
 	size: Record<NodeRole, number>;
 	ring: Record<NodeRole, RingStyle | null>; // null for no ring
-	/** Colour for links to the active note when connected notes are highlighted. */
-	connectedLink: number;
 	dimLabels: boolean;
 	dimLinks: boolean;
 }
 
 export interface RingStyle {
-	rgb: number;
+	/** Ring colour, or null to match the note's dot colour. */
+	rgb: number | null;
 	/** Line thickness in screen pixels at normal zoom. */
 	width: number;
 	/** Space between the node and the ring, in screen pixels at normal zoom. */
@@ -77,6 +85,8 @@ export class GraphPatcher {
 	private rings = new Map<GraphNode, PixiGraphics>();
 	private raised = new WeakSet<GraphLink>();
 	private overlays = new Map<GraphRenderer, PixiContainer>();
+	private blends = new Map<GraphLink, PixiSprite>();
+	private gradient: unknown = null;
 
 	constructor(
 		private getStyle: () => StyleOptions,
@@ -94,6 +104,9 @@ export class GraphPatcher {
 
 	uninstall(): void {
 		for (const node of [...this.rings.keys()]) this.removeRing(node);
+		for (const link of [...this.blends.keys()]) this.removeBlend(link);
+		(this.gradient as { destroy?(all: boolean): void } | null)?.destroy?.(true);
+		this.gradient = null;
 		// Hand any raised links back to the graph's own layer, under the nodes.
 		for (const [renderer, overlay] of this.overlays) {
 			for (const child of [...overlay.children]) {
@@ -122,6 +135,8 @@ export class GraphPatcher {
 			pruneRings: () => this.pruneRings(),
 			linkRadius: (n: GraphNode, st: GraphState | undefined) => this.linkRadius(n, st),
 			setRaised: (l: GraphLink, on: boolean) => this.setRaised(l, on),
+			endColour: (n: GraphNode, st: GraphState) => this.endColour(n, st),
+			updateBlend: (l: GraphLink, rgb: number | null) => this.updateBlend(l, rgb),
 		};
 	}
 
@@ -167,6 +182,70 @@ export class GraphPatcher {
 		}
 		if (on) this.raised.add(link);
 		else this.raised.delete(link);
+	}
+
+	/** The colour a highlighted link takes at a node: its ring colour if it has a ring, else its dot colour. */
+	private endColour(node: GraphNode, state: GraphState): number {
+		// A ring set to match the note has a null colour, so it falls through to the dot colour too.
+		return this.ringStyle(node, state)?.rgb ?? node.getFillColor().rgb;
+	}
+
+	/**
+	 * A horizontal white texture fading from transparent (left) to opaque (right), shared
+	 * by every blended link. Laid over a solid line tinted with the start colour and
+	 * tinted with the end colour itself, it blends the line evenly from one to the other.
+	 */
+	private gradientTexture(): unknown {
+		if (this.gradient) return this.gradient;
+		const PIXI = (window as unknown as { PIXI?: { Texture: { from(source: HTMLCanvasElement): unknown } } }).PIXI;
+		if (!PIXI) return null;
+		const canvas = createEl('canvas', { attr: { width: 256, height: 1 } });
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return null;
+		const fill = ctx.createLinearGradient(0, 0, 256, 0);
+		fill.addColorStop(0, 'rgba(255,255,255,0)');
+		fill.addColorStop(1, 'rgba(255,255,255,1)');
+		ctx.fillStyle = fill;
+		ctx.fillRect(0, 0, 256, 1);
+		this.gradient = PIXI.Texture.from(canvas);
+		return this.gradient;
+	}
+
+	/**
+	 * Lay the end colour over a highlighted link (null removes it). The line itself is
+	 * already tinted with the start colour; this matches its size, place and opacity.
+	 */
+	private updateBlend(link: GraphLink, rgb: number | null): void {
+		const line = link.line;
+		if (rgb === null || !line || !link.px) {
+			this.removeBlend(link);
+			return;
+		}
+		let blend = this.blends.get(link);
+		if (!blend) {
+			const PIXI = (window as unknown as { PIXI?: { Sprite: new (texture: unknown) => PixiSprite } }).PIXI;
+			const texture = this.gradientTexture();
+			if (!PIXI || !texture) return;
+			blend = new PIXI.Sprite(texture);
+			blend.eventMode = 'none';
+			link.px.addChild(blend);
+			this.blends.set(link, blend);
+		}
+		blend.visible = line.visible;
+		blend.x = line.x;
+		blend.y = line.y;
+		blend.width = line.width;
+		blend.height = line.height;
+		blend.alpha = line.alpha;
+		blend.tint = rgb;
+	}
+
+	private removeBlend(link: GraphLink): void {
+		const blend = this.blends.get(link);
+		if (!blend) return;
+		blend.parent?.removeChild(blend);
+		blend.destroy();
+		this.blends.delete(link);
 	}
 
 	/** The ring style for a node, or null if it has none. */
@@ -228,7 +307,7 @@ export class GraphPatcher {
 		ring.scale.x = ring.scale.y = r.nodeScale;
 		ring.alpha = node.fadeAlpha ?? 1;
 		ring.clear();
-		ring.lineStyle(width, style.rgb, 1);
+		ring.lineStyle(width, style.rgb ?? node.getFillColor().rgb, 1);
 		ring.drawCircle(0, 0, node.getSize() + style.gap * px + width / 2);
 	}
 
@@ -236,6 +315,10 @@ export class GraphPatcher {
 	pruneRings(): void {
 		for (const node of [...this.rings.keys()]) {
 			if (node.renderer.nodeLookup[node.id] !== node) this.removeRing(node);
+		}
+		// Links whose graphics Obsidian has cleared.
+		for (const link of [...this.blends.keys()]) {
+			if (!link.px) this.removeBlend(link);
 		}
 	}
 
@@ -372,15 +455,20 @@ export class GraphPatcher {
 					changed = true;
 				}
 
-				// Colour links to the active note, except while the mouse is over one of their ends,
-				// when Obsidian's own hover highlight takes over.
+				// Colour links to the active note from the colour at one end (ring, or dot without
+				// a ring) blending to the colour at the other, except while the mouse is over one
+				// of their ends, when Obsidian's own hover highlight takes over.
 				const hovered = this.renderer.getHighlightNode?.() ?? null;
+				let blendTo: number | null = null;
 				if (touchesActive && hovered !== this.source && hovered !== this.target) {
+					const from = self.endColour(this.source, state);
+					blendTo = self.endColour(this.target, state);
 					saved.tint = this.line.tint;
-					this.line.tint = style.connectedLink;
-					if (this.arrow) this.arrow.tint = style.connectedLink;
+					this.line.tint = from;
+					if (this.arrow) this.arrow.tint = blendTo;
 					changed = true;
 				}
+				self.updateBlend(this, blendTo);
 
 				if (changed) self.linkBase.set(this, saved);
 				return result;
