@@ -29,6 +29,7 @@ export interface GraphNoteHighlightingSettings {
 	connectedRingWidth: number;
 	connectedRingGap: number;
 
+	highlightOpen: boolean;
 	recolorOpen: boolean;
 	openColor: string;
 	openSize: number;
@@ -75,6 +76,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	connectedRingWidth: 1,
 	connectedRingGap: 2,
 
+	highlightOpen: true,
 	recolorOpen: true,
 	openColor: '#ffffff',
 	openSize: 1,
@@ -216,11 +218,6 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			);
 	}
 
-	private roleSection(el: HTMLElement, role: NodeRole, heading: string, noteDesc: string) {
-		new Setting(el).setName(heading).setHeading();
-		this.roleRows(el, role, noteDesc);
-	}
-
 	/** Colour, size and ring rows for one kind of highlighted note. */
 	private roleRows(el: HTMLElement, role: NodeRole, noteDesc: string) {
 		const k = ROLE_KEYS[role];
@@ -296,7 +293,23 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			);
 		}
 
-		this.roleSection(el, 'open', 'Open notes', 'open notes');
+		new Setting(el).setName('Open notes').setHeading();
+		new Setting(el)
+			.setName('Highlight open notes')
+			.setDesc(
+				'Style the other open notes and light up the notes around them. Off leaves them as Obsidian draws them.',
+			)
+			.addToggle((t) =>
+				// Redraw so the open-note settings below follow the toggle.
+				t.setValue(this.plugin.settings.highlightOpen).onChange(async (v) => this.set('highlightOpen', v, true)),
+			);
+		if (this.plugin.settings.highlightOpen) this.openRows(el);
+
+		this.fadingSection(el);
+	}
+
+	private openRows(el: HTMLElement) {
+		this.roleRows(el, 'open', 'open notes');
 		new Setting(el)
 			.setName('Count as open')
 			.setDesc('Which other notes count as open. Notes showing in other panes always count.')
@@ -325,7 +338,9 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'includeSidebars',
 		);
 		this.toggle(el, 'Always display node names', 'Show the names of open notes at every zoom level.', 'openShowNames');
+	}
 
+	private fadingSection(el: HTMLElement) {
 		new Setting(el).setName('Fading').setHeading();
 		this.slider(
 			el,

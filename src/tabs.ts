@@ -14,6 +14,8 @@ export type OpenScope = 'split' | 'all';
 export interface TabOptions {
 	/** Off: the active note gets no special treatment and counts as an open note. */
 	highlightActive: boolean;
+	/** Off: other open notes are not highlighted at all. */
+	highlightOpen: boolean;
 	openWeight: number;
 	/** Whether highlighting travels through tag nodes (when the graph shows tags). */
 	includeTags: boolean;
@@ -106,7 +108,7 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 	const seeds: Seed[] = [];
 	const active = activeLeaf(app, lastFileLeaf);
 	const activePath = active ? leafFilePath(app, active) : null;
-	if (activePath) {
+	if (activePath && (opts.highlightActive || opts.highlightOpen)) {
 		seeds.push(
 			opts.highlightActive
 				? { path: activePath, role: 'active', weight: 1, includeTags: opts.includeTags }
@@ -114,6 +116,7 @@ export function collectSeeds(app: App, opts: TabOptions, lastFileLeaf: Workspace
 		);
 	}
 
+	if (!opts.highlightOpen) return seeds;
 	const seen = new Set(seeds.map((s) => s.path));
 	app.workspace.iterateAllLeaves((leaf) => {
 		const path = leafFilePath(app, leaf);
