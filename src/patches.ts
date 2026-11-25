@@ -351,6 +351,25 @@ export class GraphPatcher {
 	 * with its layer, so destroying them again is allowed to fail.
 	 */
 	pruneRenderers(live: ReadonlySet<GraphRenderer>): void {
+		// Rings and blends first: they live inside the overlay and the link graphics.
+		for (const [node, ring] of this.rings) {
+			if (live.has(node.renderer)) continue;
+			this.rings.delete(node);
+			try {
+				ring.destroy();
+			} catch {
+				// Already destroyed with the graph.
+			}
+		}
+		for (const [link, blend] of this.blends) {
+			if (live.has(link.renderer)) continue;
+			this.blends.delete(link);
+			try {
+				blend.destroy();
+			} catch {
+				// Already destroyed with the graph.
+			}
+		}
 		for (const [renderer, overlay] of this.overlays) {
 			if (live.has(renderer)) continue;
 			this.overlays.delete(renderer);
