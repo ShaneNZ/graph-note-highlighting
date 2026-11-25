@@ -75,6 +75,15 @@ export function leafFilePath(app: App, leaf: WorkspaceLeaf): string | null {
 	return typeof file === 'string' && app.vault.getFileByPath(file) ? file : null;
 }
 
+/** True while the leaf is still in the workspace (it hasn't been closed). */
+export function isAttached(app: App, leaf: WorkspaceLeaf): boolean {
+	let found = false;
+	app.workspace.iterateAllLeaves((l) => {
+		if (l === leaf) found = true;
+	});
+	return found;
+}
+
 /**
  * The note being edited. When focus moves to a graph (or a sidebar panel), keep
  * the last note leaf that had focus, as long as it is still open.
@@ -82,11 +91,7 @@ export function leafFilePath(app: App, leaf: WorkspaceLeaf): string | null {
 function activeLeaf(app: App, lastFileLeaf: WorkspaceLeaf | null): WorkspaceLeaf | null {
 	const current = app.workspace.getActiveViewOfType(FileView);
 	if (current?.file && isFileLeaf(current.leaf)) return current.leaf;
-	let stillOpen = false;
-	app.workspace.iterateAllLeaves((leaf) => {
-		if (leaf === lastFileLeaf) stillOpen = true;
-	});
-	return stillOpen && isFileLeaf(lastFileLeaf) ? lastFileLeaf : null;
+	return lastFileLeaf && isAttached(app, lastFileLeaf) && isFileLeaf(lastFileLeaf) ? lastFileLeaf : null;
 }
 
 /** Whether a non-active leaf's note counts as open under the chosen scope. */

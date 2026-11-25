@@ -7,7 +7,7 @@ import {
 	sanitizeSettings,
 	type GraphNoteHighlightingSettings,
 } from './settings';
-import { collectSeeds, findOpenLeaf, isFileLeaf } from './tabs';
+import { collectSeeds, findOpenLeaf, isAttached, isFileLeaf } from './tabs';
 import type { GraphRenderer } from './types';
 
 function hexToRgb(hex: string): number {
@@ -82,7 +82,13 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 				this.refreshSoon();
 			}),
 		);
-		this.registerEvent(ws.on('layout-change', this.refreshSoon));
+		this.registerEvent(
+			ws.on('layout-change', () => {
+				// Let go of a closed tab, so it and its editor can be garbage collected.
+				if (this.lastFileLeaf && !isAttached(this.app, this.lastFileLeaf)) this.lastFileLeaf = null;
+				this.refreshSoon();
+			}),
+		);
 		this.registerEvent(ws.on('file-open', this.refreshSoon));
 		this.registerEvent(ws.on('resize', this.refreshSoon));
 		ws.onLayoutReady(() => {
