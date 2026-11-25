@@ -1,7 +1,12 @@
 import { Keymap, Plugin, debounce, type WorkspaceLeaf } from 'obsidian';
 import { computeState } from './opacity';
 import { GraphPatcher, type StyleOptions } from './patches';
-import { DEFAULT_SETTINGS, GraphNoteHighlightingSettingTab, type GraphNoteHighlightingSettings } from './settings';
+import {
+	DEFAULT_SETTINGS,
+	GraphNoteHighlightingSettingTab,
+	sanitizeSettings,
+	type GraphNoteHighlightingSettings,
+} from './settings';
 import { collectSeeds, findOpenLeaf, isFileLeaf } from './tabs';
 import type { GraphRenderer } from './types';
 
@@ -126,8 +131,12 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			delete data.fadePerHop;
 			migrated = true;
 		}
-		this.settings = { ...DEFAULT_SETTINGS, ...(data as Partial<GraphNoteHighlightingSettings>) };
-		if (migrated) await this.saveData(this.settings);
+		this.settings = sanitizeSettings(data);
+		// Save if a migration ran, or if checking dropped an unknown key or replaced a value.
+		const cleaned =
+			Object.keys(data).some((key) => !(key in this.settings)) ||
+			Object.entries(this.settings).some(([key, value]) => key in data && data[key] !== value);
+		if (migrated || cleaned) await this.saveData(this.settings);
 		this.updateStyle();
 	}
 

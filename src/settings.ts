@@ -106,6 +106,63 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 type Settings = GraphNoteHighlightingSettings;
 type KeysOfType<T> = { [K in keyof Settings]: Settings[K] extends T ? K : never }[keyof Settings];
 
+interface Limits {
+	min: number;
+	max: number;
+	step: number;
+}
+
+const SIZE: Limits = { min: 1, max: 3, step: 0.1 };
+const RING_WIDTH: Limits = { min: 0.5, max: 8, step: 0.5 };
+const RING_GAP: Limits = { min: 0, max: 10, step: 0.5 };
+const FRACTION: Limits = { min: 0, max: 1, step: 0.05 };
+
+/** Slider limits for every number setting, also used to clamp values read from disk. */
+const NUMBER_LIMITS: Record<KeysOfType<number>, Limits> = {
+	activeSize: SIZE,
+	connectedSize: SIZE,
+	openSize: SIZE,
+	activeRingWidth: RING_WIDTH,
+	connectedRingWidth: RING_WIDTH,
+	openRingWidth: RING_WIDTH,
+	activeRingGap: RING_GAP,
+	connectedRingGap: RING_GAP,
+	openRingGap: RING_GAP,
+	openWeight: FRACTION,
+	maxHops: { min: 1, max: 10, step: 1 },
+	minConnectedBrightness: FRACTION,
+	minOpacity: FRACTION,
+};
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const OPEN_SCOPES: readonly string[] = ['split', 'all'] satisfies OpenScope[];
+
+/**
+ * Settings from saved data, keeping only known keys with values of the right type
+ * and range. Anything missing or invalid (say, from a hand-edited data.json) falls
+ * back to its default, and numbers are clamped to their slider's limits.
+ */
+export function sanitizeSettings(data: Record<string, unknown>): Settings {
+	const out: Record<string, unknown> = { ...DEFAULT_SETTINGS };
+	for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+		if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+		const value = data[key];
+		if (typeof value !== typeof fallback) continue;
+		if (typeof value === 'number') {
+			if (!Number.isFinite(value)) continue;
+			const { min, max, step } = NUMBER_LIMITS[key as KeysOfType<number>];
+			const clamped = Math.min(max, Math.max(min, value));
+			out[key] = step >= 1 ? Math.round(clamped) : clamped;
+		} else if (typeof value === 'string') {
+			const valid = key === 'openScope' ? OPEN_SCOPES.includes(value) : HEX_COLOR.test(value);
+			if (valid) out[key] = value;
+		} else {
+			out[key] = value;
+		}
+	}
+	return out as unknown as Settings;
+}
+
 /** Settings keys for the per-role options, so active, connected and open notes share one builder. */
 const ROLE_KEYS = {
 	active: {
@@ -173,11 +230,9 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		name: string,
 		desc: string,
 		key: KeysOfType<number>,
-		min: number,
-		max: number,
-		step: number,
 		after?: () => void,
 	) {
+		const { min, max, step } = NUMBER_LIMITS[key];
 		new Setting(el)
 			.setName(name)
 			.setDesc(desc)
@@ -238,7 +293,7 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			k.recolor,
 			k.color,
 		);
-		this.slider(el, 'Size', 'Node size multiplier.', k.size, 1, 3, 0.1);
+		this.slider(el, 'Size', 'Node size multiplier.', k.size);
 		this.toggle(
 			el,
 			'Scale text to node size',
@@ -255,8 +310,8 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 					// Redraw so the ring colour picker follows the toggle.
 					t.setValue(s[k.ringMatch]).onChange(async (v) => this.set(k.ringMatch, v, true)),
 				);
-			this.slider(el, 'Ring width', 'Thickness of the ring, in pixels.', k.ringWidth, 0.5, 8, 0.5);
-			this.slider(el, 'Ring gap', 'Space between the note and its ring, in pixels.', k.ringGap, 0, 10, 0.5);
+			this.slider(el, 'Ring width', 'Thickness of the ring, in pixels.', k.ringWidth);
+			this.slider(el, 'Ring gap', 'Space between the note and its ring, in pixels.', k.ringGap);
 		}
 	}
 
@@ -343,9 +398,6 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'Reach',
 			'How strongly an open note lights up its neighbours, relative to the active note.',
 			'openWeight',
-			0,
-			1,
-			0.05,
 		);
 		this.toggle(
 			el,
@@ -363,9 +415,6 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'Maximum hops',
 			'How many links away from an open note are lit up. Notes further away drop to the minimum opacity.',
 			'maxHops',
-			1,
-			10,
-			1,
 			() => this.updateStep(),
 		);
 		this.slider(
@@ -373,9 +422,6 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'Minimum brightness for connected notes',
 			'Brightness of notes at the last lit hop. Brightness falls in even steps from the open note down to this.',
 			'minConnectedBrightness',
-			0,
-			1,
-			0.05,
 			() => this.updateStep(),
 		);
 		this.stepEl = new Setting(el).setName('Step per hop').descEl;
@@ -385,9 +431,6 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			'Minimum opacity',
 			'Opacity of notes no open note reaches. Keeps them faintly visible.',
 			'minOpacity',
-			0,
-			1,
-			0.05,
 		);
 		this.toggle(el, 'Fade labels', 'Fade note titles along with their nodes.', 'dimLabels');
 		this.toggle(el, 'Fade links', 'Fade links to match the fainter of their two notes.', 'dimLinks');
