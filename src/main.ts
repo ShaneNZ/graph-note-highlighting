@@ -88,6 +88,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	}
 
 	onunload() {
+		// A pending refresh would re-patch the prototypes after uninstall().
+		this.refreshSoon.cancel();
 		const renderers = this.allGraphLeaves()
 			.map((leaf) => this.renderer(leaf))
 			.filter((r): r is GraphRenderer => r !== null);
