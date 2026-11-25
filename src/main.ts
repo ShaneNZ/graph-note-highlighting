@@ -274,9 +274,10 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 			if (type !== 'tag' && !Keymap.isModEvent(evt)) {
 				const leaf = findOpenLeaf(this.app, id);
 				if (leaf) {
-					void this.app.workspace.revealLeaf(leaf).then(() => {
-						this.app.workspace.setActiveLeaf(leaf, { focus: true });
-					});
+					this.app.workspace
+						.revealLeaf(leaf)
+						.then(() => this.app.workspace.setActiveLeaf(leaf, { focus: true }))
+						.catch((e) => console.error('Graph Note Highlighting: failed to switch to the open note', e));
 					return;
 				}
 			}
