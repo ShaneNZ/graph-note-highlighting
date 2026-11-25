@@ -90,6 +90,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	onunload() {
 		// A pending refresh would re-patch the prototypes after uninstall().
 		this.refreshSoon.cancel();
+		this.saveSoon.run(); // write any slider change still waiting
 		const renderers = this.allGraphLeaves()
 			.map((leaf) => this.renderer(leaf))
 			.filter((r): r is GraphRenderer => r !== null);
@@ -130,11 +131,22 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 		this.updateStyle();
 	}
 
-	async saveSettings() {
-		await this.saveData(this.settings);
+	/**
+	 * Apply the settings to every graph and save them. With `soon` (used while a
+	 * slider is dragged) the write to disk waits until the changes stop.
+	 */
+	async saveSettings(soon = false) {
 		this.updateStyle();
 		this.refresh();
+		if (soon) {
+			this.saveSoon();
+		} else {
+			this.saveSoon.cancel();
+			await this.saveData(this.settings);
+		}
 	}
+
+	private saveSoon = debounce(() => void this.saveData(this.settings), 500, true);
 
 	private updateStyle() {
 		const s = this.settings;

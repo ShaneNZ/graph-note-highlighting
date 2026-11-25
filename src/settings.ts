@@ -151,9 +151,9 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
-	private async set<K extends keyof Settings>(key: K, value: Settings[K], redraw = false) {
+	private async set<K extends keyof Settings>(key: K, value: Settings[K], redraw = false, saveSoon = false) {
 		this.plugin.settings[key] = value;
-		await this.plugin.saveSettings();
+		await this.plugin.saveSettings(saveSoon);
 		if (redraw) this.display();
 	}
 
@@ -186,7 +186,8 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 					.setLimits(min, max, step)
 					.setValue(this.plugin.settings[key])
 					.onChange(async (v) => {
-						await this.set(key, v);
+						// Sliders fire on every step of a drag; write to disk once it stops.
+						await this.set(key, v, false, true);
 						after?.();
 					}),
 			);
