@@ -345,6 +345,23 @@ export class GraphPatcher {
 		}
 	}
 
+	/**
+	 * Forget everything held for graphs that have closed, so their renderers can be
+	 * garbage collected. The graph may already have destroyed these objects along
+	 * with its layer, so destroying them again is allowed to fail.
+	 */
+	pruneRenderers(live: ReadonlySet<GraphRenderer>): void {
+		for (const [renderer, overlay] of this.overlays) {
+			if (live.has(renderer)) continue;
+			this.overlays.delete(renderer);
+			try {
+				overlay.destroy();
+			} catch {
+				// Already destroyed with the graph.
+			}
+		}
+	}
+
 	private removeRing(node: GraphNode): void {
 		const ring = this.rings.get(node);
 		if (!ring) return;

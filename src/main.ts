@@ -182,10 +182,14 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 
 	/** Recompute every open graph. */
 	refresh() {
-		this.patcher.pruneRings();
+		const live = new Set<GraphRenderer>();
 		for (const leaf of this.allGraphLeaves()) {
 			const renderer = this.renderer(leaf);
-			if (!renderer) continue;
+			if (renderer) live.add(renderer);
+		}
+		this.patcher.pruneRenderers(live);
+		this.patcher.pruneRings();
+		for (const renderer of live) {
 			this.patcher.ensurePatched(renderer);
 			this.patchClicks(renderer);
 			this.restyle(renderer);
