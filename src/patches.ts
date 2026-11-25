@@ -31,6 +31,18 @@ export interface RingStyle {
 type AnyFn = (...args: unknown[]) => unknown;
 
 /**
+ * Run a clean-up step that may fail because Obsidian has already destroyed the
+ * objects with its graph (destroying a PIXI object twice throws).
+ */
+function attempt(step: () => void): void {
+	try {
+		step();
+	} catch {
+		// Already gone with the graph.
+	}
+}
+
+/**
  * Make a link run between ring edges instead of dot edges. Obsidian has already
  * placed the line from the edge of one dot to the edge of the other; move whichever
  * end has a ring (null radius = leave that end on the dot).
@@ -121,23 +133,30 @@ export class GraphPatcher {
 	}
 
 	uninstall(): void {
-		for (const node of [...this.rings.keys()]) this.removeRing(node);
-		for (const link of [...this.blends.keys()]) this.removeBlend(link);
-		(this.gradient as { destroy?(all: boolean): void } | null)?.destroy?.(true);
-		this.gradient = null;
-		// Hand any raised links back to the graph's own layer, under the nodes.
-		for (const [renderer, overlay] of this.overlays) {
-			for (const child of [...overlay.children]) {
-				overlay.removeChild(child);
-				renderer.hanger.addChildAt(child, 0);
-			}
-			overlay.parent?.removeChild(overlay);
-			overlay.destroy();
-		}
-		this.overlays.clear();
+		// Restore Obsidian's methods first, so a failure while cleaning up graphics
+		// can never leave the graph patched.
 		for (const restore of this.restores.reverse()) restore();
 		this.restores = [];
 		this.patchedProtos.clear();
+
+		for (const node of [...this.rings.keys()]) this.removeRing(node);
+		for (const link of [...this.blends.keys()]) this.removeBlend(link);
+		const gradient = this.gradient as { destroy?(all: boolean): void } | null;
+		this.gradient = null;
+		attempt(() => gradient?.destroy?.(true));
+		for (const [renderer, overlay] of this.overlays) {
+			attempt(() => {
+				// Hand any raised links back to the graph's own layer, under the nodes.
+				const layer = renderer.hanger;
+				for (const child of [...overlay.children]) {
+					overlay.removeChild(child);
+					layer?.addChildAt(child, 0);
+				}
+				overlay.parent?.removeChild(overlay);
+				overlay.destroy();
+			});
+		}
+		this.overlays.clear();
 	}
 
 	/** Closures for the patched methods, which run with `this` bound to a node, link or renderer. */
@@ -175,6 +194,7 @@ export class GraphPatcher {
 			this.overlays.set(renderer, overlay);
 		}
 		const layer = renderer.hanger;
+		if (!layer) return null;
 		if (layer.children[layer.children.length - 1] !== overlay) {
 			if (overlay.parent) overlay.parent.removeChild(overlay);
 			layer.addChild(overlay);
@@ -190,11 +210,12 @@ export class GraphPatcher {
 		if (on) this.overlay(link.renderer); // keep the overlay on top
 		if (on === this.raised.has(link)) return;
 		const overlay = this.overlay(link.renderer);
-		if (!overlay || !link.px) return;
+		const layer = link.renderer.hanger;
+		if (!overlay || !layer || !link.px) return;
 		for (const part of [link.arrow, link.px]) {
 			if (!part) continue;
-			const from = on ? link.renderer.hanger : overlay;
-			const to = on ? overlay : link.renderer.hanger;
+			const from = on ? layer : overlay;
+			const to = on ? overlay : layer;
 			from.removeChild(part);
 			to.addChildAt(part, 0);
 		}
@@ -261,9 +282,11 @@ export class GraphPatcher {
 	private removeBlend(link: GraphLink): void {
 		const blend = this.blends.get(link);
 		if (!blend) return;
-		blend.parent?.removeChild(blend);
-		blend.destroy();
 		this.blends.delete(link);
+		attempt(() => {
+			blend.parent?.removeChild(blend);
+			blend.destroy();
+		});
 	}
 
 	/** The ring style for a node, or null if it has none. */
@@ -345,48 +368,30 @@ export class GraphPatcher {
 		}
 	}
 
-	/**
-	 * Forget everything held for graphs that have closed, so their renderers can be
-	 * garbage collected. The graph may already have destroyed these objects along
-	 * with its layer, so destroying them again is allowed to fail.
-	 */
+	/** Forget everything held for graphs that have closed, so their renderers can be garbage collected. */
 	pruneRenderers(live: ReadonlySet<GraphRenderer>): void {
 		// Rings and blends first: they live inside the overlay and the link graphics.
-		for (const [node, ring] of this.rings) {
-			if (live.has(node.renderer)) continue;
-			this.rings.delete(node);
-			try {
-				ring.destroy();
-			} catch {
-				// Already destroyed with the graph.
-			}
+		for (const node of [...this.rings.keys()]) {
+			if (!live.has(node.renderer)) this.removeRing(node);
 		}
-		for (const [link, blend] of this.blends) {
-			if (live.has(link.renderer)) continue;
-			this.blends.delete(link);
-			try {
-				blend.destroy();
-			} catch {
-				// Already destroyed with the graph.
-			}
+		for (const link of [...this.blends.keys()]) {
+			if (!live.has(link.renderer)) this.removeBlend(link);
 		}
 		for (const [renderer, overlay] of this.overlays) {
 			if (live.has(renderer)) continue;
 			this.overlays.delete(renderer);
-			try {
-				overlay.destroy();
-			} catch {
-				// Already destroyed with the graph.
-			}
+			attempt(() => overlay.destroy());
 		}
 	}
 
 	private removeRing(node: GraphNode): void {
 		const ring = this.rings.get(node);
 		if (!ring) return;
-		ring.parent?.removeChild(ring);
-		ring.destroy();
 		this.rings.delete(node);
+		attempt(() => {
+			ring.parent?.removeChild(ring);
+			ring.destroy();
+		});
 	}
 
 	private around(proto: object, name: string, wrap: (orig: AnyFn) => AnyFn): void {

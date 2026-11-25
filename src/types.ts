@@ -82,7 +82,8 @@ export interface GraphRenderer {
 	nodes: GraphNode[];
 	links: GraphLink[];
 	nodeLookup: Record<string, GraphNode>;
-	hanger: PixiContainer;
+	/** The graph's drawing layer. Null once Obsidian has destroyed the graph's graphics. */
+	hanger: PixiContainer | null;
 	/** Zoom level. */
 	scale: number;
 	/** Label opacity for the current zoom level. */
