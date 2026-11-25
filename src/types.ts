@@ -30,6 +30,7 @@ export interface PixiGraphics extends PixiDisplay {
 export interface PixiContainer {
 	children: unknown[];
 	parent: PixiContainer | null;
+	readonly destroyed?: boolean;
 	eventMode: string;
 	zIndex: number;
 	destroy(): void;

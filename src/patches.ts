@@ -115,7 +115,8 @@ export class GraphPatcher {
 	private patchedProtos = new Set<object>();
 	private linkBase = new WeakMap<GraphLink, { line: number; arrow: number; tint?: number }>();
 	private rings = new Map<GraphNode, PixiGraphics>();
-	private raised = new WeakSet<GraphLink>();
+	// Keyed by the link's graphics, which Obsidian replaces when it rebuilds them.
+	private raised = new WeakSet<object>();
 	private overlays = new Map<GraphRenderer, PixiContainer>();
 	private blends = new Map<GraphLink, PixiSprite>();
 	private gradient: unknown = null;
@@ -187,7 +188,8 @@ export class GraphPatcher {
 	 */
 	private overlay(renderer: GraphRenderer): PixiContainer | null {
 		let overlay = this.overlays.get(renderer);
-		if (!overlay) {
+		// Obsidian destroys the overlay along with its layer when it rebuilds the graph's graphics.
+		if (!overlay || overlay.destroyed) {
 			const PIXI = (window as unknown as { PIXI?: { Container: new () => PixiContainer } }).PIXI;
 			if (!PIXI) return null;
 			overlay = new PIXI.Container();
@@ -210,10 +212,11 @@ export class GraphPatcher {
 	 */
 	private setRaised(link: GraphLink, on: boolean): void {
 		if (on) this.overlay(link.renderer); // keep the overlay on top
-		if (on === this.raised.has(link)) return;
+		const px = link.px;
+		if (!px || on === this.raised.has(px)) return;
 		const overlay = this.overlay(link.renderer);
 		const layer = link.renderer.hanger;
-		if (!overlay || !layer || !link.px) return;
+		if (!overlay || !layer) return;
 		for (const part of [link.arrow, link.px]) {
 			if (!part) continue;
 			const from = on ? layer : overlay;
@@ -221,8 +224,8 @@ export class GraphPatcher {
 			from.removeChild(part);
 			to.addChildAt(part, 0);
 		}
-		if (on) this.raised.add(link);
-		else this.raised.delete(link);
+		if (on) this.raised.add(px);
+		else this.raised.delete(px);
 	}
 
 	/** The colour a highlighted link takes at a node: its ring colour if it has a ring, else its dot colour. */
@@ -263,6 +266,11 @@ export class GraphPatcher {
 			return;
 		}
 		let blend = this.blends.get(link);
+		// Obsidian rebuilt the link's graphics, leaving the old blend behind.
+		if (blend && (blend.parent as unknown) !== link.px) {
+			this.removeBlend(link);
+			blend = undefined;
+		}
 		if (!blend) {
 			const PIXI = (window as unknown as { PIXI?: { Sprite: new (texture: unknown) => PixiSprite } }).PIXI;
 			const texture = this.gradientTexture();
