@@ -59,7 +59,8 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	private patcher!: GraphPatcher;
 	private style!: StyleOptions;
 	private lastFileLeaf: WorkspaceLeaf | null = null;
-	private clickRestores = new Map<GraphRenderer, () => void>();
+	// Weak, so a closed graph's renderer can be garbage collected.
+	private clickRestores = new WeakMap<GraphRenderer, () => void>();
 
 	async onload() {
 		await this.loadSettings();
@@ -87,10 +88,12 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 	}
 
 	onunload() {
-		for (const restore of this.clickRestores.values()) restore();
-		this.clickRestores.clear();
+		const renderers = this.allGraphLeaves()
+			.map((leaf) => this.renderer(leaf))
+			.filter((r): r is GraphRenderer => r !== null);
+		for (const renderer of renderers) this.clickRestores.get(renderer)?.();
 		this.patcher.uninstall();
-		for (const leaf of this.allGraphLeaves()) this.renderer(leaf)?.changed();
+		for (const renderer of renderers) renderer.changed();
 	}
 
 	async loadSettings() {
