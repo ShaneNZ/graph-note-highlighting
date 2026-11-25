@@ -70,8 +70,8 @@ function trimToRings(link: GraphLink, sourceRadius: number | null, targetRadius:
 
 /**
  * Show a node's name whatever the zoom level. Obsidian hides names when zoomed out;
- * this places the label the way Obsidian places a hovered node's label, still fading
- * with the node when another note is hovered. The text size is left to Obsidian.
+ * this places and sizes the label the way Obsidian does for a label it shows, still
+ * fading with the node when another note is hovered.
  */
 function showLabel(node: GraphNode): void {
 	const text = node.text;
@@ -81,20 +81,22 @@ function showLabel(node: GraphNode): void {
 	text.visible = true;
 	text.x = node.x;
 	text.y = node.y + (node.getSize() + 5) * f + (node.moveText ?? 0) / r.scale;
+	// Obsidian only sizes the labels it shows, so a label it hid has a stale scale.
+	text.scale.x = text.scale.y = labelScale(node);
 	text.alpha = (node.fadeAlpha ?? 1) * r.colors.text.a;
 }
 
-/**
- * Grow a highlighted node's name by its size multiplier. Starts from the scale Obsidian
- * gives a label (the node scale, or 1 / zoom for a hovered note when zoomed out), so the
- * result is the same every frame however Obsidian left the label.
- */
+/** The scale Obsidian gives a label it shows: the node scale, or 1 / zoom for a hovered note when zoomed out. */
+function labelScale(node: GraphNode): number {
+	const r = node.renderer;
+	return isHovered(node) && r.scale < 1 ? 1 / r.scale : r.nodeScale;
+}
+
+/** Grow a highlighted node's name by its size multiplier. */
 function scaleLabel(node: GraphNode, multiplier: number): void {
 	const text = node.text;
 	if (!text?.visible) return;
-	const r = node.renderer;
-	const base = isHovered(node) && r.scale < 1 ? 1 / r.scale : r.nodeScale;
-	text.scale.x = text.scale.y = base * multiplier;
+	text.scale.x = text.scale.y = labelScale(node) * multiplier;
 }
 
 /** True while the pointer is over this node. Obsidian shows a hovered node at full strength. */
