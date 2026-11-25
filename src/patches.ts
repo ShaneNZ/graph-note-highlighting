@@ -72,6 +72,11 @@ function showLabel(node: GraphNode): void {
 	text.alpha = (node.fadeAlpha ?? 1) * r.colors.text.a;
 }
 
+/** True while the pointer is over this node. Obsidian shows a hovered node at full strength. */
+function isHovered(node: GraphNode): boolean {
+	return node.renderer.getHighlightNode?.() === node;
+}
+
 /**
  * Patches the prototypes of Obsidian's graph node, link and renderer classes.
  * One patch covers every graph (global and local) and every node created later,
@@ -305,7 +310,12 @@ export class GraphPatcher {
 		ring.x = node.x;
 		ring.y = node.y;
 		ring.scale.x = ring.scale.y = r.nodeScale;
-		ring.alpha = node.fadeAlpha ?? 1;
+		// On hover the ring comes up to full strength in its own colour, replacing
+		// Obsidian's hover circle (drawn in the theme's highlight colour).
+		const hovered = isHovered(node);
+		ring.alpha = hovered ? 1 : (node.fadeAlpha ?? 1);
+		const hoverCircle = (node as unknown as { highlight?: { visible: boolean } | null }).highlight;
+		if (hovered && hoverCircle) hoverCircle.visible = false;
 		ring.clear();
 		ring.lineStyle(width, style.rgb ?? node.getFillColor().rgb, 1);
 		ring.drawCircle(0, 0, node.getSize() + style.gap * px + width / 2);
@@ -371,12 +381,23 @@ export class GraphPatcher {
 
 		this.around(proto, 'getFillColor', (orig) =>
 			function (this: GraphNode, ...args: unknown[]) {
-				const color = orig.apply(this, args) as GraphNode['getFillColor'] extends () => infer C ? C : never;
 				const state = self.states.get(this.renderer);
+				const hovered = state ? isHovered(this) : false;
+				// Obsidian paints a hovered note in its highlight colour. While the plugin is
+				// highlighting, hover only lifts opacity, so ask for the colour as if not hovered.
+				const r = this.renderer as unknown as { highlightNode: unknown; dragNode: unknown };
+				const saved = hovered ? [r.highlightNode, r.dragNode] : null;
+				if (saved) r.highlightNode = r.dragNode = null;
+				let color: GraphNode['getFillColor'] extends () => infer C ? C : never;
+				try {
+					color = orig.apply(this, args) as typeof color;
+				} finally {
+					if (saved) [r.highlightNode, r.dragNode] = saved;
+				}
 				if (!state) return color;
 				const role = state.roles.get(this.id);
 				const rgb = (role && self.getStyle().recolor[role]) ?? color.rgb;
-				return { rgb, a: color.a * nodeOpacity(state, this.id) };
+				return { rgb, a: hovered ? color.a : color.a * nodeOpacity(state, this.id) };
 			},
 		);
 
@@ -392,9 +413,16 @@ export class GraphPatcher {
 			function (this: GraphNode, ...args: unknown[]) {
 				const result = orig.apply(this, args);
 				const state = self.states.get(this.renderer);
-				if (state?.labelled.has(this.id)) showLabel(this);
-				if (state && this.text && self.getStyle().dimLabels) {
+				const hovered = isHovered(this);
+				if (state && (hovered || state.labelled.has(this.id))) showLabel(this);
+				if (state && this.text && self.getStyle().dimLabels && !hovered) {
 					this.text.alpha *= nodeOpacity(state, this.id);
+				}
+				// The active note's name is always shown at full strength, whatever the zoom
+				// level, and even while another note is hovered.
+				if (state?.roles.get(this.id) === 'active' && this.text) {
+					showLabel(this);
+					this.text.alpha = this.renderer.colors.text.a;
 				}
 				self.updateRing(this, state);
 				return result;
@@ -427,9 +455,19 @@ export class GraphPatcher {
 					if (this.arrow) this.arrow.alpha = base.arrow;
 					self.linkBase.delete(this);
 				}
-				const result = orig.apply(this, args);
-
 				const state = self.states.get(this.renderer);
+				// Obsidian colours links to a hovered note in its highlight colour. While the plugin
+				// is highlighting, hover only changes opacity, so hand it the plain line colour.
+				const colors = this.renderer.colors as unknown as Record<string, unknown>;
+				const lineHighlight = colors.lineHighlight;
+				if (state) colors.lineHighlight = colors.line;
+				let result: unknown;
+				try {
+					result = orig.apply(this, args);
+				} finally {
+					colors.lineHighlight = lineHighlight;
+				}
+
 				// A link to the active note is highlighted only if its other end is a connected
 				// note, so links to tags stay plain when tags are excluded.
 				const active = state?.connectedTo;
@@ -456,11 +494,9 @@ export class GraphPatcher {
 				}
 
 				// Colour links to the active note from the colour at one end (ring, or dot without
-				// a ring) blending to the colour at the other, except while the mouse is over one
-				// of their ends, when Obsidian's own hover highlight takes over.
-				const hovered = this.renderer.getHighlightNode?.() ?? null;
+				// a ring) blending to the colour at the other, hovered or not.
 				let blendTo: number | null = null;
-				if (touchesActive && hovered !== this.source && hovered !== this.target) {
+				if (touchesActive) {
 					const from = self.endColour(this.source, state);
 					blendTo = self.endColour(this.target, state);
 					saved.tint = this.line.tint;
