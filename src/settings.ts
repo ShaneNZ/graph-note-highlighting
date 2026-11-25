@@ -12,6 +12,7 @@ export interface GraphNoteHighlightingSettings {
 	recolorActive: boolean;
 	activeColor: string;
 	activeSize: number;
+	activeScaleText: boolean;
 	activeRing: boolean;
 	activeRingColor: string;
 	activeRingMatch: boolean;
@@ -23,6 +24,7 @@ export interface GraphNoteHighlightingSettings {
 	recolorConnected: boolean;
 	connectedColor: string;
 	connectedSize: number;
+	connectedScaleText: boolean;
 	connectedRing: boolean;
 	connectedRingColor: string;
 	connectedRingMatch: boolean;
@@ -33,6 +35,7 @@ export interface GraphNoteHighlightingSettings {
 	recolorOpen: boolean;
 	openColor: string;
 	openSize: number;
+	openScaleText: boolean;
 	openRing: boolean;
 	openRingColor: string;
 	openRingMatch: boolean;
@@ -59,6 +62,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	recolorActive: false,
 	activeColor: '#ffffff',
 	activeSize: 1,
+	activeScaleText: true,
 	activeRing: true,
 	activeRingColor: '#ffffff',
 	activeRingMatch: false,
@@ -70,6 +74,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	recolorConnected: false,
 	connectedColor: '#ffffff',
 	connectedSize: 1,
+	connectedScaleText: false,
 	connectedRing: true,
 	connectedRingColor: '#ffffff',
 	connectedRingMatch: false,
@@ -80,6 +85,7 @@ export const DEFAULT_SETTINGS: GraphNoteHighlightingSettings = {
 	recolorOpen: true,
 	openColor: '#ffffff',
 	openSize: 1,
+	openScaleText: false,
 	openRing: false,
 	openRingColor: '#ffffff',
 	openRingMatch: false,
@@ -106,6 +112,7 @@ const ROLE_KEYS = {
 		recolor: 'recolorActive',
 		color: 'activeColor',
 		size: 'activeSize',
+		scaleText: 'activeScaleText',
 		ring: 'activeRing',
 		ringColor: 'activeRingColor',
 		ringMatch: 'activeRingMatch',
@@ -116,6 +123,7 @@ const ROLE_KEYS = {
 		recolor: 'recolorConnected',
 		color: 'connectedColor',
 		size: 'connectedSize',
+		scaleText: 'connectedScaleText',
 		ring: 'connectedRing',
 		ringColor: 'connectedRingColor',
 		ringMatch: 'connectedRingMatch',
@@ -126,6 +134,7 @@ const ROLE_KEYS = {
 		recolor: 'recolorOpen',
 		color: 'openColor',
 		size: 'openSize',
+		scaleText: 'openScaleText',
 		ring: 'openRing',
 		ringColor: 'openRingColor',
 		ringMatch: 'openRingMatch',
@@ -229,6 +238,12 @@ export class GraphNoteHighlightingSettingTab extends PluginSettingTab {
 			k.color,
 		);
 		this.slider(el, 'Size', 'Node size multiplier.', k.size, 1, 3, 0.1);
+		this.toggle(
+			el,
+			'Scale text to node size',
+			`Grow the names of ${noteDesc} by the same multiplier as the node. Off leaves the text at Obsidian's size.`,
+			k.scaleText,
+		);
 		const s = this.plugin.settings;
 		this.toggledColor(el, 'Ring', `Draw a ring around ${noteDesc}.`, k.ring, k.ringColor, s[k.ringMatch]);
 		if (s[k.ring]) {

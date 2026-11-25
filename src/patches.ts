@@ -13,6 +13,7 @@ import type {
 export interface StyleOptions {
 	recolor: Record<NodeRole, number | null>; // rgb, or null to keep the group colour
 	size: Record<NodeRole, number>;
+	scaleText: Record<NodeRole, boolean>; // grow names by the size multiplier
 	ring: Record<NodeRole, RingStyle | null>; // null for no ring
 	dimLabels: boolean;
 	dimLinks: boolean;
@@ -57,8 +58,8 @@ function trimToRings(link: GraphLink, sourceRadius: number | null, targetRadius:
 
 /**
  * Show a node's name whatever the zoom level. Obsidian hides names when zoomed out;
- * this places the label the way Obsidian places a hovered node's label, at a
- * readable size, still fading with the node when another note is hovered.
+ * this places the label the way Obsidian places a hovered node's label, still fading
+ * with the node when another note is hovered. The text size is left to Obsidian.
  */
 function showLabel(node: GraphNode): void {
 	const text = node.text;
@@ -68,8 +69,20 @@ function showLabel(node: GraphNode): void {
 	text.visible = true;
 	text.x = node.x;
 	text.y = node.y + (node.getSize() + 5) * f + (node.moveText ?? 0) / r.scale;
-	text.scale.x = text.scale.y = r.scale < 1 ? 1 / r.scale : f;
 	text.alpha = (node.fadeAlpha ?? 1) * r.colors.text.a;
+}
+
+/**
+ * Grow a highlighted node's name by its size multiplier. Starts from the scale Obsidian
+ * gives a label (the node scale, or 1 / zoom for a hovered note when zoomed out), so the
+ * result is the same every frame however Obsidian left the label.
+ */
+function scaleLabel(node: GraphNode, multiplier: number): void {
+	const text = node.text;
+	if (!text?.visible) return;
+	const r = node.renderer;
+	const base = isHovered(node) && r.scale < 1 ? 1 / r.scale : r.nodeScale;
+	text.scale.x = text.scale.y = base * multiplier;
 }
 
 /** True while the pointer is over this node. Obsidian shows a hovered node at full strength. */
@@ -378,6 +391,9 @@ export class GraphPatcher {
 	private patchNode(proto: object): void {
 		if (!this.once(proto)) return;
 		const self = this.handle();
+		// True while Obsidian builds a node's font, so the font size ignores the size
+		// multiplier and the name stays at Obsidian's size unless the scale option is on.
+		let plainSize = false;
 
 		this.around(proto, 'getFillColor', (orig) =>
 			function (this: GraphNode, ...args: unknown[]) {
@@ -404,8 +420,20 @@ export class GraphPatcher {
 		this.around(proto, 'getSize', (orig) =>
 			function (this: GraphNode, ...args: unknown[]) {
 				const size = orig.apply(this, args) as number;
+				if (plainSize) return size;
 				const role = self.states.get(this.renderer)?.roles.get(this.id);
 				return role ? size * self.getStyle().size[role] : size;
+			},
+		);
+
+		this.around(proto, 'getTextStyle', (orig) =>
+			function (this: GraphNode, ...args: unknown[]) {
+				plainSize = true;
+				try {
+					return orig.apply(this, args);
+				} finally {
+					plainSize = false;
+				}
 			},
 		);
 
@@ -424,6 +452,9 @@ export class GraphPatcher {
 					showLabel(this);
 					this.text.alpha = this.renderer.colors.text.a;
 				}
+				const role = state?.roles.get(this.id);
+				const style = self.getStyle();
+				if (role && style.scaleText[role]) scaleLabel(this, style.size[role]);
 				self.updateRing(this, state);
 				return result;
 			},

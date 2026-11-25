@@ -140,6 +140,7 @@ export default class GraphNoteHighlightingPlugin extends Plugin {
 				connected: s.recolorConnected ? hexToRgb(s.connectedColor) : null,
 			},
 			size: { active: s.activeSize, open: s.openSize, connected: s.connectedSize },
+			scaleText: { active: s.activeScaleText, open: s.openScaleText, connected: s.connectedScaleText },
 			ring: {
 				active: s.activeRing
 					? { rgb: s.activeRingMatch ? null : hexToRgb(s.activeRingColor), width: s.activeRingWidth, gap: s.activeRingGap }
